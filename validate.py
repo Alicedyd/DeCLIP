@@ -122,7 +122,7 @@ def validate_masked_detection(model, loader):
             in_tens = img.cuda()
             outputs = model(in_tens, dual_output=True)
             masks = torch.sigmoid(output["mask"].squeeze(1))
-            logits = torch.sigmoid(output["logit"].squee
+            logits = torch.sigmoid(output["logit"].squeeze(1))
             
             gd_masks = [Image.open(mask_path) for mask_path in masks_paths]
             gd_masks = [((transforms.ToTensor()(x).to(masks.device)) > 0.5).float().squeeze() for x in masks]

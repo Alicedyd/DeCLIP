@@ -20,6 +20,38 @@ class CLIPModelLocalisation(nn.Module):
 
         self._set_backbone()
         self._set_decoder()
+        
+        self._set_cls_conv() # xjw
+        
+    def _set_cls_conv(self):
+        # xjw
+        self.cls_conv = nn.Sequential(
+            nn.Conv2d(in_channels=64, out_channels=32, kernel_size=3, stride=2, padding=1),  # [64, 32, 128, 128]
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+
+            nn.Conv2d(in_channels=32, out_channels=16, kernel_size=3, stride=2, padding=1),  # [64, 16, 64, 64]
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+
+            nn.Conv2d(in_channels=16, out_channels=8, kernel_size=3, stride=2, padding=1),  # [64, 8, 32, 32]
+            nn.BatchNorm2d(8),
+            nn.ReLU(),
+
+            nn.Conv2d(in_channels=8, out_channels=4, kernel_size=3, stride=2, padding=1),  # [64, 4, 16, 16]
+            nn.BatchNorm2d(4),
+            nn.ReLU(),
+
+            nn.Conv2d(in_channels=4, out_channels=2, kernel_size=3, stride=2, padding=1),  # [64, 2, 8, 8]
+            nn.BatchNorm2d(2),
+            nn.ReLU(),
+
+            nn.Conv2d(in_channels=2, out_channels=1, kernel_size=3, stride=2, padding=1),  # [64, 1, 4, 4]
+            nn.BatchNorm2d(1),
+            nn.ReLU(),
+
+            nn.Conv2d(in_channels=1, out_channels=1, kernel_size=4, stride=1, padding=0),  # [64, 1, 1, 1]
+        )
 
     def _set_backbone(self):    
         # Set up the backbone model architecture and parameters
@@ -156,7 +188,7 @@ class CLIPModelLocalisation(nn.Module):
         
         return features
                 
-    def forward(self, x):
+    def forward(self, x, dual_output=False):
         # Feature extraction
         features = self.feature_extraction(x)
         
@@ -193,7 +225,27 @@ class CLIPModelLocalisation(nn.Module):
         else:
             features = features[1:]
             output = self._feature_map_transform(features)
-            output = self.fc(output)
-
-        output = torch.flatten(output, start_dim =1)
-        return output
+            # output = self.fc(output)
+            if not dual_output:
+                output = self.fc(output)
+            else:
+                # xjw
+                for i, layer in enumerate(self.fc):
+                    output = layer(output)
+                    if i == 63:
+                        stored_feature = output.clone()
+                        
+        
+        if not dual_output:
+            output = torch.flatten(output, start_dim =1)
+            return output
+        else:
+            # xjw
+            outputs = []
+            outputs["mask"] = torch.flatten(output, start_dim=1)
+            
+            guided_feature = sored_feature * nn.sigmoid(output)
+            self.label
+            
+            
+            

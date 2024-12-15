@@ -111,7 +111,7 @@ class Trainer(BaseModel):
         # xjw
         if not self.opt.mask_plus_label:
             outputs = self.output
-        elif:
+        else:
             mask = self.output["mask"]
             logit = self.output["logit"]
         
