@@ -55,7 +55,6 @@ class Trainer(BaseModel):
             self.ious = []
             self.F1_best = []
             self.F1_fixed = []
-            self.ap = []
             self.logits = []
             self.labels = []
         else:
@@ -79,7 +78,7 @@ class Trainer(BaseModel):
 
     def forward(self):
         # self.output = self.model(self.input)
-        self.output, self.output_2 = self.model(self.input, dual_output=self.opt.mask_plus_label) # output_2 is None when mask_plus_label=False, output is mask and output_2 is logit when mask_plus_label=True
+        self.output = self.model(self.input, dual_output=self.opt.mask_plus_label) # output will be a dict when mask_plus_label=True
         
         if self.opt.fully_supervised:
             # resize prediction to ground truth mask size
@@ -93,15 +92,18 @@ class Trainer(BaseModel):
         if self.opt.mask_plus_label:
             if self.mask.size()[1] != 256*256:
                 mask_size = (int(self.mask.size()[1] ** 0.5), int(self.mask.size()[1] ** 0.5))
-                self.output = self.output.view(-1, 1, 256, 256)
-                self.output = F.interpolate(self.output, size=label_size, mode='bilinear', align_corners=False)
-                self.output = torch.flatten(self.output, start_dim=1).unsqueeze(1)
+                self.output["mask"] = self.output["mask"].view(-1, 1, 256, 256)
+                self.output["mask"] = F.interpolate(self.output["mask"], size=label_size, mode='bilinear', align_corners=False)
+                self.output["mask"] = torch.flatten(self.output["mask"], start_dim=1).unsqueeze(1)
 
         if not self.opt.fully_supervised and not self.opt.mask_plus_label:
             self.output = torch.mean(self.output, dim=1)
 
     def get_loss(self):
-        return self.loss_fn(self.output.squeeze(1), self.label)
+        if not self.opt.mask_plus_label:
+            return self.loss_fn(self.output.squeeze(1), self.label)
+        else:
+            return self.loss_fn(self.output["mask"].squeeze(1), self.mask) + self.loss_fn(self.output["logit"].squeeze(1), self.label)
 
     def optimize_parameters(self):
         self.forward()
@@ -110,8 +112,8 @@ class Trainer(BaseModel):
         if not self.opt.mask_plus_label:
             outputs = self.output
         elif:
-            mask = self.output
-            logit = self.output_2
+            mask = self.output["mask"]
+            logit = self.output["logit"]
         
         if self.opt.fully_supervised:
             sigmoid_outputs = torch.sigmoid(outputs)
@@ -143,9 +145,6 @@ class Trainer(BaseModel):
             F1_best, F1_fixed = compute_batch_localization_f1(sigmoid_mask, mask)
             self.F1_best.extend(F1_best)
             self.F1_fixed.extend(F1_fixed)
-            
-            ap = compute_batch_ap(sigmoid_mask, mask)
-            self.ap.extend(ap)
             
             self.logit.append(logit)
             self.labels.append(self.label)

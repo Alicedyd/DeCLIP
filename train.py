@@ -3,7 +3,7 @@ import os
 import time
 from tensorboardX import SummaryWriter
 
-from validate import validate, validate_fully_supervised
+from validate import validate, validate_fully_supervised, validate_masked_detection
 from utils.utils import compute_accuracy_detection, compute_average_precision_detection
 from data import create_dataloader
 from earlystop import EarlyStopping
@@ -69,6 +69,27 @@ if __name__ == '__main__':
             mean_ap = sum(model.ap)/len(model.ap)
             model.ap = []
             print(f"Epoch mean train Mean AP: {round(mean_ap, 4)}")
+        elif opt.mask_plus_label:
+            # xjw
+            mean_iou = sum(model.ious)/len(model.ious)
+            model.ious = []
+            print(f"Epoch mean train IOU: {round(mean_iou, 2)}")
+            
+            mean_F1_best = sum(model.F1_best)/len(model.F1_best)
+            model.F1_best = []
+            print(f"Epoch mean train F1_best: {round(mean_F1_best, 4)}")
+            mean_F1_fixed = sum(model.F1_fixed)/len(model.F1_fixed)
+            model.F1_fixed = []
+            print(f"Epoch mean train F1_fixed: {round(mean_F1_fixed, 4)}")
+            
+            model.format_output()
+            mean_acc = compute_accuracy_detection(model.logits, model.labels)
+            print(f"Epoch mean train ACC: {round(mean_acc, 2)}")
+            mean_ap = compute_average_precision_detection(model.logits, model.labels)
+            print(f"Epoch mean train AP: {round(mean_ap, 4)}")
+        
+            model.logits = []
+            model.labels = []
         else:
             model.format_output()
             mean_acc = compute_accuracy_detection(model.logits, model.labels)
@@ -107,6 +128,36 @@ if __name__ == '__main__':
                 best_iou = mean_iou
             
             early_stopping(mean_iou, model)
+        elif opt.mask_plus_label:
+            ious, f1_best, f1_fixed, ap, r_acc, f_acc, acc, _ = validate_masked_detection(model.model, val_loader)
+            mean_iou = sum(ious)/len(ious)
+            val_writer.add_scalar('iou', mean_iou, model.total_steps)
+            print(f"(Val @ epoch {epoch}) IOU: {round(mean_iou, 2)}")
+            
+            mean_f1_best = sum(f1_best)/len(f1_best)
+            val_writer.add_scalar('F1_best', mean_f1_best, model.total_steps)
+            print(f"(Val @ epoch {epoch}) F1 best: {round(mean_f1_best, 4)}")
+            
+            mean_f1_fixed = sum(f1_fixed)/len(f1_fixed)
+            val_writer.add_scalar('F1_fixed', mean_f1_fixed, model.total_steps)
+            print(f"(Val @ epoch {epoch}) F1 fixed: {round(mean_f1_fixed, 4)}")
+            
+            mean_ap = sum(mean_ap)/len(mean_ap)
+            val_writer.add_scalar('Mean AP', mean_ap, model.total_steps)
+            print(f"(Val @ epoch {epoch}) Mean AP: {round(mean_ap, 4)}")
+            
+            val_writer.add_scalar('accuracy', acc, model.total_steps)
+            val_writer.add_scalar('ap', ap, model.total_steps)
+            print(f"(Val @ epoch {epoch}) ACC: {acc}; AP: {ap}")
+            
+            # save best model weights or those at save_epoch_freq 
+            if ap > best_iou:
+                print('saving best model at the end of epoch %d' % (epoch))
+                print(ap, best_iou)
+                model.save_networks( 'model_epoch_best.pth' )
+                best_iou = ap
+
+            early_stopping(acc, model)
         else:
             ap, r_acc, f_acc, acc = validate(model.model, val_loader)
             val_writer.add_scalar('accuracy', acc, model.total_steps)

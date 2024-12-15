@@ -5,7 +5,7 @@ import torch.utils.data
 import numpy as np
 from models import get_model
 from PIL import Image, ImageOps
-from dataset_paths import DETECTION_DATASET_PATHS, LOCALISATION_DATASET_PATHS
+from dataset_paths import DETECTION_DATASET_PATHS, LOCALISATION_DATASET_PATHS, MASKED_DETECTION_DATASET_PATHS
 import random
 import shutil
 from utils.utils import compute_batch_iou, compute_batch_localization_f1, compute_batch_ap, generate_outputs, find_best_threshold, compute_accuracy_detection, compute_average_precision_detection
@@ -107,6 +107,56 @@ def validate_fully_supervised(model, loader, dataset_name, output_save_path = ''
 
     return ious, f1_best, f1_fixed, mean_ap, all_img_paths
 
+# xjw
+def validate_masked_detection(model, loader):
+    with torch.no_grad():
+        ious = []
+        f1_best = []
+        f1_fixed = []
+        y_true, y_pred = [], []
+        print("Length of dataset: %d" %(len(loader.dataset)))
+        
+        for _, data in enumerate(loader):
+            img, label, mask, img_path, mask_path = data
+            
+            in_tens = img.cuda()
+            outputs = model(in_tens, dual_output=True)
+            masks = torch.sigmoid(output["mask"].squeeze(1))
+            logits = torch.sigmoid(output["logit"].squee
+            
+            gd_masks = [Image.open(mask_path) for mask_path in masks_paths]
+            gd_masks = [((transforms.ToTensor()(x).to(masks.device)) > 0.5).float().squeeze() for x in masks]
+            
+            masks = masks.view(masks.size(0), int(masks.size(1)**0.5), int(masks.size(1)**0.5))
+            resized_masks = []
+            for i, mask in enumerate(masks):
+                if mask.size() != gd_masks[i].size():
+                    mask_resized = F.resize(mask.unsqueeze(0), gd_masks[i].size(), interpolation=torchvision.transforms.InterpolationMode.BILINEAR).squeeze(0)
+                    resized_masks.append(mask_resized)
+                else:
+                    resized_masks.append(mask)
+                    
+            batch_ious = compute_batch_iou(resized_outputs, masks, threshold = 0.5)
+            batch_F1_best, batch_F1_fixed = compute_batch_localization_f1(resized_outputs, masks)
+            
+            ious.extend(batch_ious)
+            f1_best.extend(batch_F1_best)
+            f1_fixed.extend(batch_F1_fixed)
+                                   
+            y_pred.extend(logits)
+            y_true.extend(label)
+            
+            all_img_paths.extend(img_paths)
+                                   
+        best_thres = find_best_threshold(y_true, y_pred)
+        mean_acc_best_th = compute_accuracy_detection(y_pred, y_true, threshold = best_thres)
+        mean_acc = compute_accuracy_detection(y_pred, y_true)
+        mean_ap = compute_average_precision_detection(y_pred, y_true)
+                                   
+    return ious, f1_beast, f1_fixed, mean_ap, mean_acc, mean_acc_best_th, best_thres, all_image_paths
+
+            
+        
 def save_scores_to_file(ious, f1_best, f1_fixed, aps, img_paths, file_path):
     with open(file_path + "/scores.txt", 'w') as file:
         file.write(f'Image path \t iou \t f1_best \t f1_fixed \t ap\n')
