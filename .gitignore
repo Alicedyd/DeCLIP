@@ -6,3 +6,5 @@ networks/.ipynb_checkpoints/
 options/.ipynb_checkpoints/
 results/.ipynb_checkpoints/
 utils/.ipynb_checkpoints/
+__pycache__/
+plots.ipynb
