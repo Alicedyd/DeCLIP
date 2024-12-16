@@ -25,32 +25,30 @@ class CLIPModelLocalisation(nn.Module):
         
     def _set_cls_conv(self):
         # xjw
-        self.cls_conv = nn.Sequential(
-            nn.Conv2d(in_channels=64, out_channels=32, kernel_size=3, stride=2, padding=1),  # [64, 32, 128, 128]
-            nn.BatchNorm2d(32),
+        self.conv_cls = nn.Sequential(
+            # First Conv2d Layer
+            nn.Conv2d(64, 1024, kernel_size=3, stride=1, padding=1),  # [64, 1024, 256, 256]
             nn.ReLU(),
 
-            nn.Conv2d(in_channels=32, out_channels=16, kernel_size=3, stride=2, padding=1),  # [64, 16, 64, 64]
-            nn.BatchNorm2d(16),
+            # First AdaptiveAvgPool2d Layer
+            nn.AdaptiveAvgPool2d((32, 32)),  # [64, 1024, 32, 32]
+
+            # Second Conv2d Layer
+            nn.Conv2d(1024, 512, kernel_size=3, stride=1, padding=1),  # [64, 512, 32, 32]
             nn.ReLU(),
 
-            nn.Conv2d(in_channels=16, out_channels=8, kernel_size=3, stride=2, padding=1),  # [64, 8, 32, 32]
-            nn.BatchNorm2d(8),
+            # Second AdaptiveAvgPool2d Layer
+            nn.AdaptiveAvgPool2d((8, 8)),  # [64, 512, 8, 8]
+
+            # Third Conv2d Layer
+            nn.Conv2d(512, 256, kernel_size=1, stride=1),  # [64, 256, 8, 8]
             nn.ReLU(),
 
-            nn.Conv2d(in_channels=8, out_channels=4, kernel_size=3, stride=2, padding=1),  # [64, 4, 16, 16]
-            nn.BatchNorm2d(4),
-            nn.ReLU(),
+            # Third AdaptiveAvgPool2d Layer
+            nn.AdaptiveAvgPool2d((1, 1)),  # [64, 256, 1, 1]
 
-            nn.Conv2d(in_channels=4, out_channels=2, kernel_size=3, stride=2, padding=1),  # [64, 2, 8, 8]
-            nn.BatchNorm2d(2),
-            nn.ReLU(),
-
-            nn.Conv2d(in_channels=2, out_channels=1, kernel_size=3, stride=2, padding=1),  # [64, 1, 4, 4]
-            nn.BatchNorm2d(1),
-            nn.ReLU(),
-
-            nn.Conv2d(in_channels=1, out_channels=1, kernel_size=4, stride=1, padding=0),  # [64, 1, 1, 1]
+            # Fourth Conv2d Layer
+            nn.Conv2d(256, 1, kernel_size=1, stride=1)  # [64, num_classes, 1, 1]
         )
 
     def _set_backbone(self):    
@@ -242,10 +240,12 @@ class CLIPModelLocalisation(nn.Module):
         else:
             # xjw
             outputs = []
-            outputs["mask"] = torch.flatten(output, start_dim=1)
+            outputs["mask"] = torch.flatten(torch.sigmoid(output), start_dim=1)
             
             guided_feature = sored_feature * nn.sigmoid(output)
-            self.label
+            logits = self.conv_cls(guided_feature)
+            output["logit"] = torch.sigmoid(logits).squeeze(1)
             
+            return outputs
             
             

@@ -159,7 +159,7 @@ if __name__ == '__main__':
 
             early_stopping(acc, model)
         else:
-            ap, r_acc, f_acc, acc = validate(model.model, val_loader)
+            ap, r_acc, f_acc, acc, _ = validate(model.model, val_loader)
             val_writer.add_scalar('accuracy', acc, model.total_steps)
             val_writer.add_scalar('ap', ap, model.total_steps)
             print(f"(Val @ epoch {epoch}) ACC: {acc}; AP: {ap}")
