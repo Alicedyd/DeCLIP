@@ -20,7 +20,15 @@ class Trainer(BaseModel):
                 torch.nn.init.normal_(fc.weight.data, 0.0, opt.init_gain)
             except:
                 pass
-
+            
+        # xjw
+        if opt.mask_plus_label:
+            for conv_cls in self.model.conv_cls:
+                try:
+                    torch.nn.init.normal_(conv_cls.weight.data, 0.0, opt.init_gain)
+                except:
+                    pass
+        
         if opt.fix_backbone:
             params = []
             for name, p in self.model.named_parameters():
@@ -78,7 +86,7 @@ class Trainer(BaseModel):
 
     def forward(self):
         # self.output = self.model(self.input)
-        self.output = self.model(self.input, dual_output=self.opt.mask_plus_label) # output will be a dict when mask_plus_label=True
+        self.output = self.model(self.input) # output will be a dict when mask_plus_label=True
         
         if self.opt.fully_supervised:
             # resize prediction to ground truth mask size
@@ -112,8 +120,8 @@ class Trainer(BaseModel):
         if not self.opt.mask_plus_label:
             outputs = self.output
         else:
-            mask = self.output["mask"]
-            logit = self.output["logit"]
+            masks = self.output["mask"]
+            logits = self.output["logit"]
         
         if self.opt.fully_supervised:
             sigmoid_outputs = torch.sigmoid(outputs)
@@ -133,20 +141,20 @@ class Trainer(BaseModel):
             self.ap.extend(ap)
         elif self.opt.mask_plus_label:
             # xjw
-            sigmoid_mask = torch.sigmoid(mask)
+            sigmoid_masks = torch.sigmoid(masks)
             
             # unflatten mask and ground truth masks
-            sigmoid_mask = sigmoid_mask.view(sigmoid_mask.size(0), int(sigmoid_mask.size(1)**0.5), int(sigmoid_mask.size(1)**0.5))
-            mask = self.mask = self.mask.view(self.mask.size(0), int(self.mask.size(1)**0.5), int(self.mask.size(1)**0.5))
+            sigmoid_masks = sigmoid_masks.view(sigmoid_masks.size(0), int(sigmoid_masks.size(1)**0.5), int(sigmoid_masks.size(1)**0.5))
+            gd_masks = self.mask.view(self.mask.size(0), int(self.mask.size(1)**0.5), int(self.mask.size(1)**0.5))
             
-            iou = compute_batch_iou(sigmoid_mask, mask)
+            iou = compute_batch_iou(sigmoid_masks, gd_masks)
             self.ious.extend(iou)
             
-            F1_best, F1_fixed = compute_batch_localization_f1(sigmoid_mask, mask)
+            F1_best, F1_fixed = compute_batch_localization_f1(sigmoid_masks, gd_masks)
             self.F1_best.extend(F1_best)
             self.F1_fixed.extend(F1_fixed)
             
-            self.logit.append(logit)
+            self.logits.append(logits)
             self.labels.append(self.label)
             
         else:
@@ -159,7 +167,7 @@ class Trainer(BaseModel):
         
         # xjw
         if self.opt.mask_plus_label:
-            self.loss = self.loss_fn(mask, self.mask) + self.loss_fn(logit, self.label)
+            self.loss = 0.5 * self.loss_fn(masks, self.mask) + 0.5 * self.loss_fn(logits, self.label)
         else:
             self.loss = self.loss_fn(outputs, self.label)
         

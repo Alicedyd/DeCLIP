@@ -174,10 +174,10 @@ class RealFakeDetectionDataset(BaseDataset):
 class RealFakeMaskedDetectionDataset(BaseDataset):
     def __init__(self, opt):
         super().__init__(opt)
-        self.mask_transf = _get_mask_transform()
+        self.mask_transf = self._get_mask_transform()
         
     def _get_data(self):
-        fake_list = get_list(self.put_path)
+        fake_list = get_list(self.input_path)
         real_list = get_list(self.input_path_real)
         
         return real_list, fake_list
@@ -185,15 +185,15 @@ class RealFakeMaskedDetectionDataset(BaseDataset):
     def _get_mask_transform(self):
         return transforms.Compose([transforms.Resize((256, 256)), transforms.ToTensor()])
     
-    def _set_labels(real_list, fake_list):
+    def _set_labels(self, real_list, fake_list):
         labels = {img: 0 for img in real_list}
         labels.update({img: 1 for img in fake_list})
         return labels
     
     def _set_masks(self, real_list, fake_list):
-        real_masks = {img: img.split("/")[-1].replace(".jpg", ".png") for img in real_list}
-        fake_masks = {img: img.split("/")[-1].replace(".jpg", ".png") for img in fake_list}
-        return real_masks, fake_masks
+        masks = {img: img.split("/")[-1].replace(".jpg", ".png") for img in real_list}
+        masks.update({img: img.split("/")[-1].replace(".jpg", ".png") for img in fake_list})
+        return masks
     
     def _get_mask_from_file(self, label, file_name):
         if label == 0:
@@ -225,7 +225,7 @@ class RealFakeMaskedDetectionDataset(BaseDataset):
             
         real_list, fake_list = self._get_data()
         self.labels_dict = self._set_labels(real_list, fake_list)
-        self.real_masks, self.fake_masks = self._set_masks(real_list, fake_list)
+        self.masks_dict = self._set_masks(real_list, fake_list)
         
         self.total_list = real_list + fake_list
         shuffle(self.total_list)
@@ -234,18 +234,13 @@ class RealFakeMaskedDetectionDataset(BaseDataset):
     def __len__(self):
         return len(self.total_list)
     
-    def __get_item__(self, idx):
-        img_path = self.fake_list[idx]
+    def __getitem__(self, idx):
+        img_path = self.total_list[idx]
         label = self.labels_dict[img_path]
-        if label == 0:
-            # real
-            mask = self.real_masks[img_path]
-        elif label == 1:
-            # fake
-            mask = self.fake_masks[img_path]
+        mask = self.masks_dict[img_path]
         
         img = Image.open(img_path).convert("RGB")
         img = self.transform(img)
-        mask = self.get_mask_from_file(label, mask)
+        mask = self._get_mask_from_file(label, mask)
 
         return img, label, mask, img_path, self.mask_path

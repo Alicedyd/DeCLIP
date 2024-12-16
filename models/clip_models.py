@@ -8,7 +8,7 @@ import re
 
 # Model for localisation
 class CLIPModelLocalisation(nn.Module):
-    def __init__(self, name, intermidiate_layer_output = None, decoder_type = "conv-4"):
+    def __init__(self, name, intermidiate_layer_output = None, decoder_type = "conv-4", mask_plus_label=False):
         super(CLIPModelLocalisation, self).__init__()
         
         self.intermidiate_layer_output = intermidiate_layer_output
@@ -21,7 +21,10 @@ class CLIPModelLocalisation(nn.Module):
         self._set_backbone()
         self._set_decoder()
         
-        self._set_cls_conv() # xjw
+        # xjw
+        self.mask_plus_label = mask_plus_label
+        if self.mask_plus_label:
+            self._set_cls_conv()
         
     def _set_cls_conv(self):
         # xjw
@@ -186,7 +189,7 @@ class CLIPModelLocalisation(nn.Module):
         
         return features
                 
-    def forward(self, x, dual_output=False):
+    def forward(self, x):
         # Feature extraction
         features = self.feature_extraction(x)
         
@@ -224,7 +227,7 @@ class CLIPModelLocalisation(nn.Module):
             features = features[1:]
             output = self._feature_map_transform(features)
             # output = self.fc(output)
-            if not dual_output:
+            if not self.mask_plus_label:
                 output = self.fc(output)
             else:
                 # xjw
@@ -234,17 +237,19 @@ class CLIPModelLocalisation(nn.Module):
                         stored_feature = output.clone()
                         
         
-        if not dual_output:
+        if not self.mask_plus_label:
             output = torch.flatten(output, start_dim =1)
             return output
         else:
             # xjw
-            outputs = []
-            outputs["mask"] = torch.flatten(torch.sigmoid(output), start_dim=1)
+            outputs = {}
+            outputs["mask"] = torch.flatten(output, start_dim=1)
             
-            guided_feature = sored_feature * nn.sigmoid(output)
+            # stored_feature = stored_feature.view(self.opt.batch_size, 3, 64 // 3, 256, 256).mean(dim=2)
+            guided_feature = stored_feature * torch.sigmoid(output)
+            
             logits = self.conv_cls(guided_feature)
-            output["logit"] = torch.sigmoid(logits).squeeze(1)
+            outputs["logit"] = torch.squeeze(logits)
             
             return outputs
             

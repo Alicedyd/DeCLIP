@@ -8,7 +8,7 @@ def create_dataloader(opt):
         dataset = RealFakeDataset(opt)
     elif opt.mask_plus_label:
         # xjw
-        dataset = RealFakeMaskedDataset(opt)
+        dataset = RealFakeMaskedDetectionDataset(opt)
     else:
         dataset = RealFakeDetectionDataset(opt)
     

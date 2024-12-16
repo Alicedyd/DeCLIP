@@ -1,3 +1,4 @@
- python validate.py --arch=CLIP:ViT-L/14 --ckpt=/root/autodl-tmp/code/DeCLIP/checkpoint/declip_backbone_VIT_ViT_layer20_conv-20_cocosd.pth \
+ python validate.py --arch=CLIP:ViT-L/14 --ckpt=/root/autodl-tmp/code/DeCLIP/checkpoint/experiment_name/model_epoch_best.pth \
                     --result_folder=/root/autodl-tmp/code/DeCLIP/results --gpu_ids 1 \
-                    --fully_supervised 
+                    --mask_plus_label \
+                    --batch_size 16 
