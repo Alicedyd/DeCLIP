@@ -85,7 +85,7 @@ def dynamic_threshold_metrics(preds, gt_dilated, gt_eroded):
     tn = torch.cumsum(gt_dilated, dim=0)
     fn = torch.cumsum(gt_eroded, dim=0)
     fp, tp = torch.sum(gt_dilated) - tn, torch.sum(gt_eroded) - fn
-    mask = F.pad(thresholds[1:] > thresholds[:-1], (0, 1), mode="constant")
+    mask = F.pad(thresholds[1:] >= thresholds[:-1], (0, 1), mode="constant") # add = for all fake
     return fp[mask], tp[mask], fn[mask], tn[mask]
 
 def fixed_threshold_metrics(preds, gt, gt_dilated, gt_eroded, threshold):

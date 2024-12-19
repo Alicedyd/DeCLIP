@@ -6,19 +6,19 @@ import numpy as np
 
 subset_name = "stable-diffusion-2-inpainting"
 
-# train_path = "/root/autodl-tmp/AIGC_data/DRCT-2M/{}/train2017".format(subset_name)
-# val_path = "/root/autodl-tmp/AIGC_data/DRCT-2M/{}/val2017".format(subset_name)
+train_path = "/root/autodl-tmp/AIGC_data/DRCT-2M/{}/train2017".format(subset_name)
+val_path = "/root/autodl-tmp/AIGC_data/DRCT-2M/{}/val2017".format(subset_name)
 
-# mask_train_path = "/root/autodl-tmp/AIGC_data/DRCT-2M/{}/masks/train2017".format(subset_name)
-# mask_val_path = "/root/autodl-tmp/AIGC_data/DRCT-2M/{}/masks/val2017".format(subset_name)
+mask_train_path = "/root/autodl-tmp/AIGC_data/DRCT-2M/{}/masks/train2017".format(subset_name)
+mask_val_path = "/root/autodl-tmp/AIGC_data/DRCT-2M/{}/masks/val2017".format(subset_name)
 
-train_path = "/root/autodl-tmp/AIGC_data/MSCOCO/train2017"
-val_path = "/root/autodl-tmp/AIGC_data/MSCOCO/val2017"
+# train_path = "/root/autodl-tmp/AIGC_data/MSCOCO/train2017"
+# val_path = "/root/autodl-tmp/AIGC_data/MSCOCO/val2017"
 
-mask_train_path = "/root/autodl-tmp/AIGC_data/MSCOCO/masks/train2017"
-mask_val_path = "/root/autodl-tmp/AIGC_data/MSCOCO/masks/val2017"
+# mask_train_path = "/root/autodl-tmp/AIGC_data/MSCOCO/masks/train2017"
+# mask_val_path = "/root/autodl-tmp/AIGC_data/MSCOCO/masks/val2017"
 
-real = True
+real = False
 if real:
     label = 0
 else:
@@ -30,7 +30,7 @@ def create_single_mask(image_path):
         h, w, c = image.shape
     except:
         h, w = image.shape
-    mask = Image.new("RGB", (h, w), color=(label,label,label))
+    mask = Image.new("RGB", (w, h), color=(label,label,label))
     
     return mask
 

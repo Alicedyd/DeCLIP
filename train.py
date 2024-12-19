@@ -3,7 +3,7 @@ import os
 import time
 from tensorboardX import SummaryWriter
 
-from validate import validate, validate_fully_supervised, validate_masked_detection
+from validate import validate, validate_fully_supervised, validate_masked_detection, validate_masked_detection_v2
 from utils.utils import compute_accuracy_detection, compute_average_precision_detection
 from data import create_dataloader
 from earlystop import EarlyStopping
@@ -11,6 +11,8 @@ from networks.trainer import Trainer
 from options.train_options import TrainOptions
 from utils.utils import derive_datapaths
 import torch.multiprocessing
+
+from tqdm import tqdm
 
 def get_val_opt(opt):
     val_opt = deepcopy(opt)
@@ -40,17 +42,23 @@ if __name__ == '__main__':
     print ("Length of training dataset: %d" %(len(data_loader.dataset)))
     for epoch in range(opt.niter):
         print(f"Epoch {epoch}")
-        epoch_loss = 0    
-        for i, data in enumerate(data_loader):
-            model.total_steps += 1
+        epoch_loss = 0
+        with tqdm(total=len(data_loader), desc=f"Epoch [{epoch}/{opt.niter}]", unit="batch") as pbar:
+            for i, data in enumerate(data_loader):
+                model.total_steps += 1
 
-            model.set_input(data)
-            model.optimize_parameters()
+                model.set_input(data)
+                model.optimize_parameters()
+                
+                loss_value = round(model.loss.item(), 4)
+                pbar.set_postfix(loss=loss_value)
 
-            if model.total_steps % opt.loss_freq == 0:
-                print(f"Train loss: {round(model.loss.item(), 4)} at step: {model.total_steps};\t Iter time: {round((time.time() - start_time) / model.total_steps, 4)}")
-                epoch_loss += model.loss
-                train_writer.add_scalar('loss', model.loss, model.total_steps)
+                if model.total_steps % opt.loss_freq == 0:
+                    # print(f"Train loss: {round(model.loss.item(), 4)} at step: {model.total_steps}; Iter time: {round((time.time() - start_time) / model.total_steps, 4)}")
+                    epoch_loss += model.loss
+                    train_writer.add_scalar('loss', model.loss, model.total_steps)
+                    
+                pbar.update(1)
 
         epoch_loss /= len(data_loader)
         if opt.fully_supervised:
@@ -129,7 +137,7 @@ if __name__ == '__main__':
             
             early_stopping(mean_iou, model)
         elif opt.mask_plus_label:
-            ious, f1_best, f1_fixed, ap, r_acc, f_acc, acc, _ = validate_masked_detection(model.model, val_loader)
+            ious, f1_best, f1_fixed, ap, r_acc, f_acc, acc, _ = validate_masked_detection_v2(model.model, val_loader)
             mean_iou = sum(ious)/len(ious)
             val_writer.add_scalar('iou', mean_iou, model.total_steps)
             print(f"(Val @ epoch {epoch}) IOU: {round(mean_iou, 2)}")
@@ -142,10 +150,6 @@ if __name__ == '__main__':
             val_writer.add_scalar('F1_fixed', mean_f1_fixed, model.total_steps)
             print(f"(Val @ epoch {epoch}) F1 fixed: {round(mean_f1_fixed, 4)}")
             
-            mean_ap = sum(mean_ap)/len(mean_ap)
-            val_writer.add_scalar('Mean AP', mean_ap, model.total_steps)
-            print(f"(Val @ epoch {epoch}) Mean AP: {round(mean_ap, 4)}")
-            
             val_writer.add_scalar('accuracy', acc, model.total_steps)
             val_writer.add_scalar('ap', ap, model.total_steps)
             print(f"(Val @ epoch {epoch}) ACC: {acc}; AP: {ap}")
@@ -153,7 +157,7 @@ if __name__ == '__main__':
             # save best model weights or those at save_epoch_freq 
             if ap > best_iou:
                 print('saving best model at the end of epoch %d' % (epoch))
-                print(ap, best_iou)
+
                 model.save_networks( 'model_epoch_best.pth' )
                 best_iou = ap
 

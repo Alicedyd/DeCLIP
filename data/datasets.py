@@ -5,7 +5,10 @@ from io import BytesIO
 from PIL import Image, ImageOps, ImageFile
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset
+import numpy as np
 from random import shuffle
+
+from .cutmix import *
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -20,7 +23,8 @@ def recursively_read(rootdir, must_contain, exts=["png", "jpg", "JPEG", "jpeg", 
     for r, d, f in os.walk(rootdir):
         for file in f:
             if file.split('.')[-1] in exts and must_contain in os.path.join(r, file):
-                out.append(os.path.join(r, file))
+                if "checkpoint" not in file:
+                    out.append(os.path.join(r, file))
     return out
 
 def get_list(path, must_contain=''):
@@ -36,6 +40,7 @@ def randomJPEGcompression(image):
     image.save(output_io_stream, "JPEG", quality=qf, optimize=True)
     output_io_stream.seek(0)
     return Image.open(output_io_stream)
+
 
 # Base Dataset class
 class BaseDataset(Dataset):
@@ -244,3 +249,107 @@ class RealFakeMaskedDetectionDataset(BaseDataset):
         mask = self._get_mask_from_file(label, mask)
 
         return img, label, mask, img_path, self.mask_path
+    
+class RealFakeMaskedDetectionDataset_V2(BaseDataset):
+    def __init__(self, opt):
+        super().__init__(opt)
+        self.mask_transf = self._get_mask_transform()
+        
+        # data mix type
+        self.mix_type = opt.mix_type
+        self.prob_aug = 0.5
+        
+    def _get_data(self):
+        fake_list = get_list(self.input_path)
+        real_list = get_list(self.input_path_real)
+        
+        return real_list, fake_list
+    
+    def _get_mask_transform(self):
+        return transforms.Resize((256, 256))
+    
+    def _set_labels(self, real_list, fake_list):
+        labels = {img: 0 for img in real_list}
+        labels.update({img: 1 for img in fake_list})
+        return labels
+        
+    def _init_data(self):
+        if self.opt.data_label == "train":
+            self.input_path = self.opt.train_path
+            self.input_path_real = self.opt.train_real_list_path
+        elif self.opt.data_label == "valid":
+            self.input_path = self.opt.valid_path
+            self.input_path_real = self.opt.valid_real_list_path
+        elif self.opt.data_label == "test":
+            self.input_path = self.opt.test_path
+            self.input_path_real = self.opt.test_real_list_path
+            
+        real_list, fake_list = self._get_data()
+        self.labels_dict = self._set_labels(real_list, fake_list)
+        
+        if self.opt.data_label == "train":
+            self.real_list = real_list
+            self.fake_list = fake_list
+        
+        self.total_list = real_list + fake_list
+        shuffle(self.total_list)
+        
+        self.transform = self._get_transform()
+        
+    def __len__(self):
+        return len(self.total_list)
+    
+    def __getitem__(self, idx):
+        # if self.opt.data_label == "train" and random.random() < self.prob_aug :
+        if self.opt.data_label == "train":
+            img_path = self.total_list[idx]
+            label = self.labels_dict[img_path]
+            
+            prob_cutmix = random.random()
+            if prob_cutmix >= 0.5:
+                mixing_img_path = random.choice(self.fake_list)
+                mixing_label = 1
+            else:
+                mixing_img_path = random.choice(self.real_list)
+                mixing_label = 0
+                
+            img = Image.open(img_path).convert("RGB")
+            img = self.transform(img)
+            
+            mixing_img = Image.open(img_path).convert("RGB")
+            mixing_img = self.transform(mixing_img)
+            
+            lam = random.random()
+            mask = generate_mask(img, lam)
+            
+            mixed_img, mixed_label = cutmix_data(img, mixing_img, label, mixing_label, mask)
+            
+#             mixing_img_path = random.choice(self.total_list)
+            
+#             img = Image.open(img_path).convert("RGB")
+#             img = self.transform(img)
+#             label_1 = self.labels_dict[img_path]
+            
+#             mixing_img = Image.open(mixing_img_path).convert("RGB")
+#             mixing_img = self.transform(mixing_img)
+#             label_2 = self.labels_dict[img_path]
+            
+#             lam = random.random()
+#             mixed_img, label, mask = mix_and_save_images(img, mixing_img, label_1, label_2, lam)
+            mask = self.mask_transf(mask.unsqueeze(0))
+            mask = self.mask_transf(mask).view(-1)
+            
+            return mixed_img, label, mask, img_path
+        else:
+            img_path = self.total_list[idx]
+            label = self.labels_dict[img_path]
+
+            img = Image.open(img_path).convert("RGB")
+            img = self.transform(img)
+            
+            h, w, c = img.shape
+            mask = Image.new("L", (w, h), color=label)
+            mask = transforms.ToTensor()(self.mask_transf(mask))
+            mask = mask.view(-1)
+
+            return img, label, mask, img_path

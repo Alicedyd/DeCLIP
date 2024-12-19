@@ -1,2 +1,2 @@
 dataset 	 iou 	 f1_best 	 f1_fixed 	 AP 	 Acc_fixed 	 Acc_best 	 Best_threshold 
-stable-diffusion-2-inpainting: 49.704	0.5	0.4982	0.4869	50.0	50.0	0.5088065266609192	
+stable-diffusion-2-inpainting: 50.0	0.5	0.5	0.5042	50.0	51.09	0.9979988932609558	

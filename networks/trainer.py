@@ -5,6 +5,11 @@ from networks.base_model import BaseModel
 from models import get_model
 from utils.utils import compute_batch_iou, compute_batch_localization_f1, compute_batch_ap
 
+import numpy as np
+from PIL import Image
+
+from .lovasz_loss import *
+
 class Trainer(BaseModel):
     def name(self):
         return 'Trainer'
@@ -32,8 +37,8 @@ class Trainer(BaseModel):
         if opt.fix_backbone:
             params = []
             for name, p in self.model.named_parameters():
-                if "fc" in name and "resblock" not in name:
-                    params.append(p) 
+                if ("fc" in name and "resblock" not in name) or ("conv_cls" in name):
+                    params.append(p)
                 else:
                     p.requires_grad = False
         else:
@@ -51,6 +56,8 @@ class Trainer(BaseModel):
 
         self.loss_fn = nn.BCEWithLogitsLoss()
 
+        if opt.mask_plus_label:
+            self.model = nn.DataParallel(self.model, device_ids=opt.gpu_ids)
         self.model.to(opt.gpu_ids[0])
         
         if opt.fully_supervised:
@@ -65,9 +72,12 @@ class Trainer(BaseModel):
             self.F1_fixed = []
             self.logits = []
             self.labels = []
+            
+            self.lovasz_weight = 0.01
         else:
             self.logits = []
             self.labels = []
+            
 
     def adjust_learning_rate(self, min_lr=1e-6):
         for param_group in self.optimizer.param_groups:
@@ -83,6 +93,7 @@ class Trainer(BaseModel):
         # xjw
         if self.opt.mask_plus_label:
             self.mask = input[2].to(self.device).float()
+            # self.mask = self.label
 
     def forward(self):
         # self.output = self.model(self.input)
@@ -101,7 +112,7 @@ class Trainer(BaseModel):
             if self.mask.size()[1] != 256*256:
                 mask_size = (int(self.mask.size()[1] ** 0.5), int(self.mask.size()[1] ** 0.5))
                 self.output["mask"] = self.output["mask"].view(-1, 1, 256, 256)
-                self.output["mask"] = F.interpolate(self.output["mask"], size=label_size, mode='bilinear', align_corners=False)
+                self.output["mask"] = F.interpolate(self.output["mask"], size=mask_size, mode='bilinear', align_corners=False)
                 self.output["mask"] = torch.flatten(self.output["mask"], start_dim=1).unsqueeze(1)
 
         if not self.opt.fully_supervised and not self.opt.mask_plus_label:
@@ -111,7 +122,8 @@ class Trainer(BaseModel):
         if not self.opt.mask_plus_label:
             return self.loss_fn(self.output.squeeze(1), self.label)
         else:
-            return self.loss_fn(self.output["mask"].squeeze(1), self.mask) + self.loss_fn(self.output["logit"].squeeze(1), self.label)
+            # return self.loss_fn(self.output["mask"].squeeze(1), self.mask) + self.loss_fn(self.output["logit"].squeeze(1), self.label)
+            return self.loss
 
     def optimize_parameters(self):
         self.forward()
@@ -147,6 +159,19 @@ class Trainer(BaseModel):
             sigmoid_masks = sigmoid_masks.view(sigmoid_masks.size(0), int(sigmoid_masks.size(1)**0.5), int(sigmoid_masks.size(1)**0.5))
             gd_masks = self.mask.view(self.mask.size(0), int(self.mask.size(1)**0.5), int(self.mask.size(1)**0.5))
             
+#             for i in range(sigmoid_masks.size(0)):
+#                 sigmoid_mask_save = sigmoid_masks[i].detach().cpu().numpy()
+#                 sigmoid_mask_save = (sigmoid_mask_save * 255).astype(np.uint8)
+#                 sigmoid_mask_save = Image.fromarray(sigmoid_mask_save)
+#                 sigmoid_mask_save.save(f"/root/autodl-tmp/code/DeCLIP/test_masks/{self.times}_{i}_pre.png")
+                
+#                 gd_mask_save = gd_masks[i].detach().cpu().numpy()
+#                 gd_mask_save = (gd_mask_save * 255).astype(np.uint8)
+#                 gd_mask_save = Image.fromarray(gd_mask_save)
+#                 gd_mask_save.save(f"/root/autodl-tmp/code/DeCLIP/test_masks/{self.times}_{i}_gt.png")
+                
+#             self.times += 1
+                
             iou = compute_batch_iou(sigmoid_masks, gd_masks)
             self.ious.extend(iou)
             
@@ -167,7 +192,9 @@ class Trainer(BaseModel):
         
         # xjw
         if self.opt.mask_plus_label:
+            # self.loss = (0.5 - self.lovasz_weight) * self.loss_fn(masks, self.mask) +  self.lovasz_weight * lovasz_hinge(masks, self.mask) + 0.5 * self.loss_fn(logits, self.label)
             self.loss = 0.5 * self.loss_fn(masks, self.mask) + 0.5 * self.loss_fn(logits, self.label)
+            # self.loss = self.loss_fn(masks, self.mask)
         else:
             self.loss = self.loss_fn(outputs, self.label)
         

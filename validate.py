@@ -118,7 +118,7 @@ def validate_masked_detection(model, loader):
         all_img_paths = []
         print("Length of dataset: %d" %(len(loader.dataset)))
         
-        with tqdm(total=len(enumerate(loader))) as pbar:
+        with tqdm(total=len(loader)) as pbar:
             for _, data in enumerate(loader):
                 img, label, _, img_paths, mask_paths = data
 
@@ -158,7 +158,63 @@ def validate_masked_detection(model, loader):
             
         y_pred = torch.stack(y_pred).to('cpu')
         y_true = torch.stack(y_true).to('cpu')
+        
+        best_thres = find_best_threshold(y_true, y_pred)
+        mean_acc_best_th = compute_accuracy_detection(y_pred, y_true, threshold = best_thres)
+        mean_acc = compute_accuracy_detection(y_pred, y_true)
+        mean_ap = compute_average_precision_detection(y_pred, y_true)
                                    
+    return ious, f1_best, f1_fixed, mean_ap, mean_acc, mean_acc_best_th, best_thres, all_img_paths
+
+def validate_masked_detection_v2(model, loader):
+    with torch.no_grad():
+        ious = []
+        f1_best = []
+        f1_fixed = []
+        y_true, y_pred = [], []
+        all_img_paths = []
+        print("Length of dataset: %d" %(len(loader.dataset)))
+        
+        with tqdm(total=len(loader)) as pbar:
+            for _, data in enumerate(loader):
+                img, label, gd_masks, img_paths = data
+
+                in_tens = img.cuda()
+                outputs = model(in_tens)
+
+                masks = outputs["mask"]
+                logits = outputs["logit"]
+                masks = torch.sigmoid(masks.squeeze(1))
+                logits = torch.sigmoid(logits)
+
+                gd_masks = [((transforms.ToTensor()(x).to(masks.device)) > 0.5).float().squeeze() for x in gd_masks]
+
+                masks = masks.view(masks.size(0), int(masks.size(1)**0.5), int(masks.size(1)**0.5))
+                resized_masks = []
+                for i, mask in enumerate(masks):
+                    if mask.size() != gd_masks[i].size():
+                        mask_resized = F.resize(mask.unsqueeze(0), gd_masks[i].size(), interpolation=torchvision.transforms.InterpolationMode.BILINEAR).squeeze(0)
+                        resized_masks.append(mask_resized)
+                    else:
+                        resized_masks.append(mask)
+
+                batch_ious = compute_batch_iou(resized_masks, gd_masks, threshold = 0.5)
+                batch_F1_best, batch_F1_fixed = compute_batch_localization_f1(resized_masks, gd_masks)
+
+                ious.extend(batch_ious)
+                f1_best.extend(batch_F1_best)
+                f1_fixed.extend(batch_F1_fixed)
+
+                y_pred.extend(logits)
+                y_true.extend(label)
+
+                all_img_paths.extend(img_paths)
+                
+                pbar.update(1)
+            
+        y_pred = torch.stack(y_pred).to('cpu')
+        y_true = torch.stack(y_true).to('cpu')
+        
         best_thres = find_best_threshold(y_true, y_pred)
         mean_acc_best_th = compute_accuracy_detection(y_pred, y_true, threshold = best_thres)
         mean_acc = compute_accuracy_detection(y_pred, y_true)
@@ -275,7 +331,7 @@ if __name__ == '__main__':
                 if not os.path.exists(output_save_path):
                     os.makedirs(output_save_path)
                     
-            ious, f1_best, f1_fixed, mean_ap, mean_acc, mean_acc_best_th, best_thres, all_img_paths = validate_masked_detection(model, loader)
+            ious, f1_best, f1_fixed, mean_ap, mean_acc, mean_acc_best_th, best_thres, all_img_paths = validate_masked_detection_v2(model, loader)
             
             mean_iou = sum(ious)/len(ious)
             mean_f1_best = sum(f1_best)/len(f1_best)

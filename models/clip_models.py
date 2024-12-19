@@ -231,11 +231,13 @@ class CLIPModelLocalisation(nn.Module):
                 output = self.fc(output)
             else:
                 # xjw
-                for i, layer in enumerate(self.fc):
+                stored_feature = []
+                for i, layer in enumerate(self.fc[:-2]):
                     output = layer(output)
-                    if i == 63:
-                        stored_feature = output.clone()
-                        
+                    
+                feature = self.fc[-2](output)
+                binary_map = self.fc[-1](feature)
+                # binary_map = self.fc(output)
         
         if not self.mask_plus_label:
             output = torch.flatten(output, start_dim =1)
@@ -243,13 +245,12 @@ class CLIPModelLocalisation(nn.Module):
         else:
             # xjw
             outputs = {}
-            outputs["mask"] = torch.flatten(output, start_dim=1)
+            outputs["mask"] = torch.flatten(binary_map, start_dim=1)
             
-            # stored_feature = stored_feature.view(self.opt.batch_size, 3, 64 // 3, 256, 256).mean(dim=2)
-            guided_feature = stored_feature * torch.sigmoid(output)
+            guided_feature = feature * torch.sigmoid(binary_map)
             
             logits = self.conv_cls(guided_feature)
-            outputs["logit"] = torch.squeeze(logits)
+            outputs["logit"] = torch.flatten(logits, start_dim=1).squeeze()
             
             return outputs
             
