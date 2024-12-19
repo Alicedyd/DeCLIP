@@ -23,5 +23,5 @@ python ../train.py --name $EXP_NAME --train_dataset $DATASET --feature_layer lay
                 --mask_plus_label --train_masks_real_ground_truth_path $TRAIN_REAL_MASK_PATH --valid_masks_real_ground_truth_path $VAL_REAL_MASK_PATH \
                 --train_real_list_path $TRAIN_REAL_PATH --valid_real_list_path $VAL_REAL_PATH \
                 --checkpoints_dir $SAVE_PATH \
-                --gpu_ids 0,1\
-                --batch_size 32 --lr 0.0005 \
+                --gpu_ids 0\
+                --batch_size 16 --lr 0.0005 \

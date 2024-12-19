@@ -55,6 +55,8 @@ class Trainer(BaseModel):
             raise ValueError("optim should be [adam, sgd]")
 
         self.loss_fn = nn.BCEWithLogitsLoss()
+        
+        self.lovasz_weight = opt.lovasz_weight
 
         if opt.mask_plus_label:
             self.model = nn.DataParallel(self.model, device_ids=opt.gpu_ids)
@@ -192,8 +194,8 @@ class Trainer(BaseModel):
         
         # xjw
         if self.opt.mask_plus_label:
-            # self.loss = (0.5 - self.lovasz_weight) * self.loss_fn(masks, self.mask) +  self.lovasz_weight * lovasz_hinge(masks, self.mask) + 0.5 * self.loss_fn(logits, self.label)
-            self.loss = 0.5 * self.loss_fn(masks, self.mask) + 0.5 * self.loss_fn(logits, self.label)
+            self.loss = (0.5 - self.lovasz_weight) * self.loss_fn(masks, self.mask) +  self.lovasz_weight * lovasz_hinge(masks, self.mask) + 0.5 * self.loss_fn(logits, self.label)
+            # self.loss = 0.5 * self.loss_fn(masks, self.mask) + 0.5 * self.loss_fn(logits, self.label)
             # self.loss = self.loss_fn(masks, self.mask)
         else:
             self.loss = self.loss_fn(outputs, self.label)
