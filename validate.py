@@ -2,6 +2,7 @@ import argparse
 import os
 import torch
 import torch.utils.data
+import torch.nn as nn
 import numpy as np
 from models import get_model
 from PIL import Image, ImageOps
@@ -9,7 +10,7 @@ from dataset_paths import DETECTION_DATASET_PATHS, LOCALISATION_DATASET_PATHS, M
 import random
 import shutil
 from utils.utils import compute_batch_iou, compute_batch_localization_f1, compute_batch_ap, generate_outputs, find_best_threshold, compute_accuracy_detection, compute_average_precision_detection
-from data.datasets import RealFakeDataset, RealFakeDetectionDataset, RealFakeMaskedDetectionDataset
+from data.datasets import RealFakeDataset, RealFakeDetectionDataset, RealFakeMaskedDetectionDataset, RealFakeMaskedDetectionDataset_V2
 import torchvision
 from torchvision.transforms import functional as F
 from torchvision import transforms
@@ -187,12 +188,12 @@ def validate_masked_detection_v2(model, loader):
                 masks = torch.sigmoid(masks.squeeze(1))
                 logits = torch.sigmoid(logits)
 
-                gd_masks = [((transforms.ToTensor()(x).to(masks.device)) > 0.5).float().squeeze() for x in gd_masks]
+                gd_masks = [((x.to(masks.device)) > 0.5).float().squeeze() for x in gd_masks]
 
                 masks = masks.view(masks.size(0), int(masks.size(1)**0.5), int(masks.size(1)**0.5))
                 resized_masks = []
                 for i, mask in enumerate(masks):
-                    if mask.size() != gd_masks[i].size():
+                    if mask.size() != gd_masks[i].size():                
                         mask_resized = F.resize(mask.unsqueeze(0), gd_masks[i].size(), interpolation=torchvision.transforms.InterpolationMode.BILINEAR).squeeze(0)
                         resized_masks.append(mask_resized)
                     else:
@@ -254,7 +255,7 @@ if __name__ == '__main__':
     print ("Model loaded..")
     
     model.eval()
-    model.cuda()
+    model.to(opt.gpu_ids[0])
 
     if os.path.exists(opt.result_folder):
         shutil.rmtree(opt.result_folder)
@@ -289,7 +290,7 @@ if __name__ == '__main__':
             opt.test_masks_ground_truth_path = dataset_path['fake_masks_path']
             opt.test_masks_real_ground_truth_path = dataset_path['real_masks_path']
             opt.test_real_list_path = dataset_path['real_path']
-            dataset = RealFakeMaskedDetectionDataset(opt)
+            dataset = RealFakeMaskedDetectionDataset_V2(opt)
         else:
             opt.test_masks_ground_truth_path = dataset_path['masks_path']
             opt.test_real_list_path = dataset_path['real_path']
@@ -325,12 +326,12 @@ if __name__ == '__main__':
                 print()
                 
         # Masked detection
-        elif opt.mask_plus_label:
+        if opt.mask_plus_label:
             if opt.output_save_path:
                 output_save_path = opt.output_save_path + "/" + dataset_path['key']
                 if not os.path.exists(output_save_path):
                     os.makedirs(output_save_path)
-                    
+            
             ious, f1_best, f1_fixed, mean_ap, mean_acc, mean_acc_best_th, best_thres, all_img_paths = validate_masked_detection_v2(model, loader)
             
             mean_iou = sum(ious)/len(ious)
@@ -352,12 +353,12 @@ if __name__ == '__main__':
                 print(dataset_path['key']+': AP = ' + str(round(mean_ap, 4)))
                 print(dataset_path['key']+': Acc_fixed = ' + str(round(mean_acc, 4)))
                 print(dataset_path['key']+': Acc_best = ' + str(round(mean_acc_best_th, 4)))
-                print(dataset_path['key']+': Best_threshold = ' + str(round(best_thres, 4)))
+                print(dataset_path['key']+': Best_threshold = ' + str(best_thres))
                 print()
             
 
         # Detection
-        else:
+        if not opt.fully_supervised and not opt.mask_plus_label:
             mean_ap, mean_acc, mean_acc_best_th, best_thres, all_img_paths = validate(model, loader)
 
             with open( os.path.join(opt.result_folder,'scores.txt'), 'a') as f:

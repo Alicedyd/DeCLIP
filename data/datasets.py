@@ -300,8 +300,7 @@ class RealFakeMaskedDetectionDataset_V2(BaseDataset):
         return len(self.total_list)
     
     def __getitem__(self, idx):
-        # if self.opt.data_label == "train" and random.random() < self.prob_aug :
-        if self.opt.data_label == "train":
+        if self.opt.data_label == "train" and random.random() < self.prob_aug :
             img_path = self.total_list[idx]
             label = self.labels_dict[img_path]
             
@@ -320,9 +319,9 @@ class RealFakeMaskedDetectionDataset_V2(BaseDataset):
             mixing_img = self.transform(mixing_img)
             
             lam = random.random()
-            mask = generate_mask(img, lam)
+            mixing_mask, mask = generate_mask(img, label, mixing_label, lam)
             
-            mixed_img, mixed_label = cutmix_data(img, mixing_img, label, mixing_label, mask)
+            mixed_img, mixed_label = cutmix_data(img, mixing_img, label, mixing_label, mixing_mask)
             
 #             mixing_img_path = random.choice(self.total_list)
             
@@ -348,8 +347,10 @@ class RealFakeMaskedDetectionDataset_V2(BaseDataset):
             img = self.transform(img)
             
             h, w, c = img.shape
-            mask = Image.new("L", (w, h), color=label)
+            mask = Image.new("L", (w, h), color=label*255)
             mask = transforms.ToTensor()(self.mask_transf(mask))
-            mask = mask.view(-1)
+            
+            if self.opt.data_label == "train":
+                mask = mask.view(-1)
 
             return img, label, mask, img_path

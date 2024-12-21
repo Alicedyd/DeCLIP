@@ -43,7 +43,7 @@ if __name__ == '__main__':
     for epoch in range(opt.niter):
         print(f"Epoch {epoch}")
         epoch_loss = 0
-        with tqdm(total=len(data_loader), desc=f"Epoch [{epoch}/{opt.niter}]", unit="batch") as pbar:
+        with tqdm(total=len(data_loader), desc=f"Epoch [{epoch}/{opt.niter}]", unit="batch", ncols=150) as pbar:
             for i, data in enumerate(data_loader):
                 model.total_steps += 1
 
@@ -107,6 +107,9 @@ if __name__ == '__main__':
         
             model.logits = []
             model.labels = []
+            
+        # Save the model for epoch 
+        model.save_networks(f'model_epoch_{epoch}.pth')
 
         # Validation
         model.eval()
@@ -137,7 +140,7 @@ if __name__ == '__main__':
             
             early_stopping(mean_iou, model)
         elif opt.mask_plus_label:
-            ious, f1_best, f1_fixed, ap, r_acc, f_acc, acc, _ = validate_masked_detection_v2(model.model, val_loader)
+            ious, f1_best, f1_fixed, ap, acc, acc_best_thres, best_thres, _ = validate_masked_detection_v2(model.model, val_loader)
             mean_iou = sum(ious)/len(ious)
             val_writer.add_scalar('iou', mean_iou, model.total_steps)
             print(f"(Val @ epoch {epoch}) IOU: {round(mean_iou, 2)}")
@@ -152,14 +155,14 @@ if __name__ == '__main__':
             
             val_writer.add_scalar('accuracy', acc, model.total_steps)
             val_writer.add_scalar('ap', ap, model.total_steps)
-            print(f"(Val @ epoch {epoch}) ACC: {acc}; AP: {ap}")
+            print(f"(Val @ epoch {epoch}) ACC: {acc}; ACC_BEST_THRES: {acc_best_thres}; AP: {ap}")
             
             # save best model weights or those at save_epoch_freq 
-            if ap > best_iou:
+            if acc > best_iou:
                 print('saving best model at the end of epoch %d' % (epoch))
 
                 model.save_networks( 'model_epoch_best.pth' )
-                best_iou = ap
+                best_iou = acc
 
             early_stopping(acc, model)
         else:

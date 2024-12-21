@@ -85,12 +85,16 @@ def mixup_data(img1, img2, label1, label2, alpha=1):
 
     return mixed_img, mixed_label
 
-def generate_mask(img, lam):
+def generate_mask(img, label, mixing_label, lam):
     """
     :param H: 图像的高度
     :param W: 图像的宽度
+    :param label: 后景标签
+    :param mixing_label: 前景标签
     :param lam: 混合比例 lambda，表示前景的比例（为0）
-    :return: mask, 后景*mask + 前景*（1-mask）
+    
+    :return: mxing_mask 用于混合后景和前景(后景 * mixing_mask + 前景 * (1 - mixing_mask)), 
+             label_mask 用于训练的标签mask
     """
     # 转换 lam 为 tensor 类型
     # lam = torch.tensor(lam) if isinstance(lam, np.ndarray) else lam
@@ -115,10 +119,12 @@ def generate_mask(img, lam):
         start_y = (H - cut_h) // 2
     
     # 生成掩码：首先初始化一个全1的 mask
-    mask_ones = torch.ones((H, W), dtype=torch.float32)
+    mixing_mask = torch.ones((H, W), dtype=torch.float32)
+    label_mask = torch.full((H, W), label, dtype=torch.float32)
 
     # 生成一个全0的 mask
-    mask_zeros = torch.zeros((cut_h, cut_w), dtype=torch.float32)
+    mixing_mask_crop = torch.zeros((cut_h, cut_w), dtype=torch.float32)
+    label_mask_crop = torch.full((cut_h, cut_w), mixing_label, dtype=torch.float32)
     
     # 确保裁剪图像能够完全放置在背景图像上
     if cut_h > H or cut_w > W:
@@ -131,6 +137,7 @@ def generate_mask(img, lam):
     rand_y = random.randint(0, max_y)
 
     # 将全0mask图像粘贴到全1mask图像的随机位置
-    mask_ones[rand_y:rand_y + cut_h, rand_x:rand_x + cut_w] = mask_zeros 
+    mixing_mask[rand_y:rand_y + cut_h, rand_x:rand_x + cut_w] = mixing_mask_crop
+    label_mask[rand_y:rand_y + cut_h, rand_x:rand_x + cut_w] = label_mask_crop
 
-    return mask_ones
+    return mixing_mask, label_mask

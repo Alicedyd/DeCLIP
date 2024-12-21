@@ -18,14 +18,14 @@ class Trainer(BaseModel):
         super(Trainer, self).__init__(opt)
         self.opt = opt
         self.model = get_model(opt)
-        
+            
         # Initialize all possible parameters in the final layer
         for fc in self.model.fc:
             try:
                 torch.nn.init.normal_(fc.weight.data, 0.0, opt.init_gain)
             except:
                 pass
-            
+
         # xjw
         if opt.mask_plus_label:
             for conv_cls in self.model.conv_cls:
@@ -34,6 +34,7 @@ class Trainer(BaseModel):
                 except:
                     pass
         
+
         if opt.fix_backbone:
             params = []
             for name, p in self.model.named_parameters():
@@ -46,19 +47,17 @@ class Trainer(BaseModel):
             import time 
             time.sleep(3)
             params = self.model.parameters()
-
+        
         if opt.optim == 'adam':
             self.optimizer = torch.optim.AdamW(params, lr=opt.lr, betas=(opt.beta1, 0.999), weight_decay=opt.weight_decay)
         elif opt.optim == 'sgd':
             self.optimizer = torch.optim.SGD(params, lr=opt.lr, momentum=0.0, weight_decay=opt.weight_decay)
         else:
             raise ValueError("optim should be [adam, sgd]")
-
-        self.loss_fn = nn.BCEWithLogitsLoss()
         
-        self.lovasz_weight = opt.lovasz_weight
+        self.loss_fn = nn.BCEWithLogitsLoss()
 
-        if opt.mask_plus_label:
+        if len(opt.gpu_ids) > 1:
             self.model = nn.DataParallel(self.model, device_ids=opt.gpu_ids)
         self.model.to(opt.gpu_ids[0])
         
@@ -75,7 +74,7 @@ class Trainer(BaseModel):
             self.logits = []
             self.labels = []
             
-            self.lovasz_weight = 0.01
+            self.lovasz_weight = opt.lovasz_weight
         else:
             self.logits = []
             self.labels = []
