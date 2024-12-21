@@ -6,7 +6,7 @@ import torch.nn as nn
 import numpy as np
 from models import get_model
 from PIL import Image, ImageOps
-from dataset_paths import DETECTION_DATASET_PATHS, LOCALISATION_DATASET_PATHS, MASKED_DETECTION_DATASET_PATHS
+from dataset_paths import DETECTION_DATASET_PATHS, LOCALISATION_DATASET_PATHS, MASKED_DETECTION_DATASET_PATHS, MASKED_DETECTION_DATASET_PATHS_V2
 import random
 import shutil
 from utils.utils import compute_batch_iou, compute_batch_localization_f1, compute_batch_ap, generate_outputs, find_best_threshold, compute_accuracy_detection, compute_average_precision_detection
@@ -267,7 +267,7 @@ if __name__ == '__main__':
         with open( os.path.join(opt.result_folder,'scores.txt'), 'a') as f:
             f.write('dataset \t iou \t f1_best \t f1_fixed \t ap \n' )
     elif opt.mask_plus_label:
-        dataset_paths = MASKED_DETECTION_DATASET_PATHS
+        dataset_paths = MASKED_DETECTION_DATASET_PATHS_V2
         with open( os.path.join(opt.result_folder,'scores.txt'), 'a') as f:
             f.write('dataset \t iou \t f1_best \t f1_fixed \t AP \t Acc_fixed \t Acc_best \t Best_threshold \n' )
     else:
@@ -287,8 +287,8 @@ if __name__ == '__main__':
             opt.test_masks_ground_truth_path = dataset_path['masks_path']
             dataset = RealFakeDataset(opt)
         elif opt.mask_plus_label:
-            opt.test_masks_ground_truth_path = dataset_path['fake_masks_path']
-            opt.test_masks_real_ground_truth_path = dataset_path['real_masks_path']
+            # opt.test_masks_ground_truth_path = dataset_path['fake_masks_path']
+            # opt.test_masks_real_ground_truth_path = dataset_path['real_masks_path']
             opt.test_real_list_path = dataset_path['real_path']
             dataset = RealFakeMaskedDetectionDataset_V2(opt)
         else:

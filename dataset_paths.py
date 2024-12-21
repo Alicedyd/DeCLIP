@@ -50,6 +50,14 @@ def get_drct_2m_masked_detection_dataset_paths(dataset):
     )
     return paths
 
+def get_drct_2m_masked_detection_dataset_paths_v2(dataset):
+    paths = dict(
+        real_path='/root/autodl-tmp/AIGC_data/MSCOCO/val2017',
+        fake_path=f'/root/autodl-tmp/AIGC_data/DRCT_2M/{dataset}/val2017',
+        key=dataset
+    )
+    return paths
+
 # LOCALISATION_DATASET_PATHS = [
 #     get_dolos_localisation_dataset_paths('pluralistic'),
 #     get_dolos_localisation_dataset_paths('lama'),
@@ -84,6 +92,15 @@ DETECTION_DATASET_PATHS = [
     get_drct_2m_detection_dataset_paths("stable-diffusion-2-inpainting"),
 ]
 
+DRCT_2M_SUBSETS = ["controlnet-canny-sdxl-1.0", "lcm-lora-sdv1-5", "lcm-lora-sdxl". "ldm-text2im-large-256", "sd-controlnet-canny", "sd-turbo", 
+                  "sd21-controlnet-canny", "sdxl-trubo", "stable-diffusion-2-1", "stable-diffusion-2-inpainting", "stable-diffusion-inpainting",
+                  "stable-diffusion-v1-4", "stable-diffusion-v1-5", "stable-diffusion-xl-1.0-inpainting-0.1", "stable-diffusion-xl-base-1.0",
+                  "stable-diffusion-xl-refiner-1.0", "fake_rec_image/stable-diffusion-2-1", "fake_rec_image/stable-diffusion-v1-4"]
+
 MASKED_DETECTION_DATASET_PATHS = [
     get_drct_2m_masked_detection_dataset_paths("stable-diffusion-2-inpainting"),
+]
+
+MASKED_DETECTION_DATASET_PATHS_V2 = [
+    get_drct_2m_masked_detection_dataset_paths_v2(subset) for subset in DRCT_2M_SUBSETS
 ]
