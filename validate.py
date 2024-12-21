@@ -176,7 +176,7 @@ def validate_masked_detection_v2(model, loader):
         all_img_paths = []
         print("Length of dataset: %d" %(len(loader.dataset)))
         
-        with tqdm(total=len(loader)) as pbar:
+        with tqdm(total=len(loader), ncols=150) as pbar:
             for _, data in enumerate(loader):
                 img, label, gd_masks, img_paths = data
 
@@ -251,7 +251,20 @@ if __name__ == '__main__':
 
     # Load model
     model = get_model(opt)
-    model.load_state_dict(state_dict['model'], strict=False)
+    if len(opt.gpu_ids) > 1:
+        self.model = nn.DataParallel(self.model, device_ids=opt.gpu_ids)
+        new_state_dict = state_dict['model']
+    else:
+        # remove the "module." prefix in state_dict['model']
+        new_state_dict = {}
+        for key, value in state_dict['model'].items():
+            if key.startswith('module.'):
+                new_key = key[7:]  # 移除 `module.` 前缀
+            else:
+                new_key = key
+            new_state_dict[new_key] = value
+        
+    model.load_state_dict(new_state_dict)
     print ("Model loaded..")
     
     model.eval()
