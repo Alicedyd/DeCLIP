@@ -9,7 +9,9 @@ class BaseOptions():
     def initialize(self, parser):
         parser.add_argument('--name', type=str, default='experiment_name', help='name of the experiment. It decides where to store samples and models')
         parser.add_argument('--fully_supervised', action='store_true', help='use fully supervision with local manipulation ground truth masks')
+        
         parser.add_argument('--mask_plus_label', action='store_true', help='use the bainary map to guide the final output detection label') # xjw
+        parser.add_argument('--mix_type', default='', help='how to mix the images in dataset (cutmix/mixup)') # xjw
 
         parser.add_argument('--arch', type=str, default='CLIP:ViT-L/14', help='see models/__init__.py')
         parser.add_argument('--fix_backbone', action='store_true', help='train only the decoder') 

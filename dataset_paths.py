@@ -40,6 +40,16 @@ def get_drct_2m_detection_dataset_paths(dataset):
     )
     return paths
 
+def get_drct_2m_masked_detection_dataset_paths(dataset):
+    paths = dict(
+        real_path='/root/autodl-tmp/AIGC_data/MSCOCO/val2017',
+        fake_path=f'/root/autodl-tmp/AIGC_data/DRCT-2M/{dataset}/val2017',
+        real_masks_path='/root/autodl-tmp/AIGC_data/MSCOCO/masks/val2017',
+        fake_masks_path=f'/root/autodl-tmp/AIGC_data/DRCT-2M/{dataset}/masks/val2017',
+        key=dataset
+    )
+    return paths
+
 # LOCALISATION_DATASET_PATHS = [
 #     get_dolos_localisation_dataset_paths('pluralistic'),
 #     get_dolos_localisation_dataset_paths('lama'),
@@ -72,4 +82,8 @@ LOCALISATION_DATASET_PATHS = [
 # our detection dataset paths
 DETECTION_DATASET_PATHS = [
     get_drct_2m_detection_dataset_paths("stable-diffusion-2-inpainting"),
+]
+
+MASKED_DETECTION_DATASET_PATHS = [
+    get_drct_2m_masked_detection_dataset_paths("stable-diffusion-2-inpainting"),
 ]

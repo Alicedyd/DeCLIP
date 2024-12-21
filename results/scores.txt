@@ -1,2 +1,0 @@
-dataset 	 iou 	 f1_best 	 f1_fixed 	 ap 
-stable-diffusion-2-inpainting: 13.48	0.1348	0.1348	0.0	

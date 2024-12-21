@@ -27,6 +27,8 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--valid_real_list_path', default='datasets/dolos_data/celebahq/real/valid', help='folder path to validation real data')
         
         # xjw
+        parser.add_argument('--lovasz_weight', type=float, default=0.01, help='the weight of lovasz loss in mask training')
+        
         parser.add_argument('--train_masks_real_ground_truth_path', type=str, default='', help="path to train real ground truth masks (only for mask_plus_label training)")
         parser.add_argument('--valid_masks_real_ground_truth_path', type=str, default='', help="path to valid real ground truth masks (only for mask_plus_label training)")
         

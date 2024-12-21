@@ -5,6 +5,11 @@ from networks.base_model import BaseModel
 from models import get_model
 from utils.utils import compute_batch_iou, compute_batch_localization_f1, compute_batch_ap
 
+import numpy as np
+from PIL import Image
+
+from .lovasz_loss import *
+
 class Trainer(BaseModel):
     def name(self):
         return 'Trainer'
@@ -13,7 +18,7 @@ class Trainer(BaseModel):
         super(Trainer, self).__init__(opt)
         self.opt = opt
         self.model = get_model(opt)
-        
+            
         # Initialize all possible parameters in the final layer
         for fc in self.model.fc:
             try:
@@ -21,11 +26,20 @@ class Trainer(BaseModel):
             except:
                 pass
 
+        # xjw
+        if opt.mask_plus_label:
+            for conv_cls in self.model.conv_cls:
+                try:
+                    torch.nn.init.normal_(conv_cls.weight.data, 0.0, opt.init_gain)
+                except:
+                    pass
+        
+
         if opt.fix_backbone:
             params = []
             for name, p in self.model.named_parameters():
-                if "fc" in name and "resblock" not in name:
-                    params.append(p) 
+                if ("fc" in name and "resblock" not in name) or ("conv_cls" in name):
+                    params.append(p)
                 else:
                     p.requires_grad = False
         else:
@@ -33,16 +47,18 @@ class Trainer(BaseModel):
             import time 
             time.sleep(3)
             params = self.model.parameters()
-
+        
         if opt.optim == 'adam':
             self.optimizer = torch.optim.AdamW(params, lr=opt.lr, betas=(opt.beta1, 0.999), weight_decay=opt.weight_decay)
         elif opt.optim == 'sgd':
             self.optimizer = torch.optim.SGD(params, lr=opt.lr, momentum=0.0, weight_decay=opt.weight_decay)
         else:
             raise ValueError("optim should be [adam, sgd]")
-
+        
         self.loss_fn = nn.BCEWithLogitsLoss()
 
+        if len(opt.gpu_ids) > 1:
+            self.model = nn.DataParallel(self.model, device_ids=opt.gpu_ids)
         self.model.to(opt.gpu_ids[0])
         
         if opt.fully_supervised:
@@ -55,12 +71,14 @@ class Trainer(BaseModel):
             self.ious = []
             self.F1_best = []
             self.F1_fixed = []
-            self.ap = []
             self.logits = []
             self.labels = []
+            
+            self.lovasz_weight = opt.lovasz_weight
         else:
             self.logits = []
             self.labels = []
+            
 
     def adjust_learning_rate(self, min_lr=1e-6):
         for param_group in self.optimizer.param_groups:
@@ -76,10 +94,11 @@ class Trainer(BaseModel):
         # xjw
         if self.opt.mask_plus_label:
             self.mask = input[2].to(self.device).float()
+            # self.mask = self.label
 
     def forward(self):
         # self.output = self.model(self.input)
-        self.output, self.output_2 = self.model(self.input, dual_output=self.opt.mask_plus_label) # output_2 is None when mask_plus_label=False, output is mask and output_2 is logit when mask_plus_label=True
+        self.output = self.model(self.input) # output will be a dict when mask_plus_label=True
         
         if self.opt.fully_supervised:
             # resize prediction to ground truth mask size
@@ -93,15 +112,19 @@ class Trainer(BaseModel):
         if self.opt.mask_plus_label:
             if self.mask.size()[1] != 256*256:
                 mask_size = (int(self.mask.size()[1] ** 0.5), int(self.mask.size()[1] ** 0.5))
-                self.output = self.output.view(-1, 1, 256, 256)
-                self.output = F.interpolate(self.output, size=label_size, mode='bilinear', align_corners=False)
-                self.output = torch.flatten(self.output, start_dim=1).unsqueeze(1)
+                self.output["mask"] = self.output["mask"].view(-1, 1, 256, 256)
+                self.output["mask"] = F.interpolate(self.output["mask"], size=mask_size, mode='bilinear', align_corners=False)
+                self.output["mask"] = torch.flatten(self.output["mask"], start_dim=1).unsqueeze(1)
 
         if not self.opt.fully_supervised and not self.opt.mask_plus_label:
             self.output = torch.mean(self.output, dim=1)
 
     def get_loss(self):
-        return self.loss_fn(self.output.squeeze(1), self.label)
+        if not self.opt.mask_plus_label:
+            return self.loss_fn(self.output.squeeze(1), self.label)
+        else:
+            # return self.loss_fn(self.output["mask"].squeeze(1), self.mask) + self.loss_fn(self.output["logit"].squeeze(1), self.label)
+            return self.loss
 
     def optimize_parameters(self):
         self.forward()
@@ -109,9 +132,9 @@ class Trainer(BaseModel):
         # xjw
         if not self.opt.mask_plus_label:
             outputs = self.output
-        elif:
-            mask = self.output
-            logit = self.output_2
+        else:
+            masks = self.output["mask"]
+            logits = self.output["logit"]
         
         if self.opt.fully_supervised:
             sigmoid_outputs = torch.sigmoid(outputs)
@@ -131,23 +154,33 @@ class Trainer(BaseModel):
             self.ap.extend(ap)
         elif self.opt.mask_plus_label:
             # xjw
-            sigmoid_mask = torch.sigmoid(mask)
+            sigmoid_masks = torch.sigmoid(masks)
             
             # unflatten mask and ground truth masks
-            sigmoid_mask = sigmoid_mask.view(sigmoid_mask.size(0), int(sigmoid_mask.size(1)**0.5), int(sigmoid_mask.size(1)**0.5))
-            mask = self.mask = self.mask.view(self.mask.size(0), int(self.mask.size(1)**0.5), int(self.mask.size(1)**0.5))
+            sigmoid_masks = sigmoid_masks.view(sigmoid_masks.size(0), int(sigmoid_masks.size(1)**0.5), int(sigmoid_masks.size(1)**0.5))
+            gd_masks = self.mask.view(self.mask.size(0), int(self.mask.size(1)**0.5), int(self.mask.size(1)**0.5))
             
-            iou = compute_batch_iou(sigmoid_mask, mask)
+#             for i in range(sigmoid_masks.size(0)):
+#                 sigmoid_mask_save = sigmoid_masks[i].detach().cpu().numpy()
+#                 sigmoid_mask_save = (sigmoid_mask_save * 255).astype(np.uint8)
+#                 sigmoid_mask_save = Image.fromarray(sigmoid_mask_save)
+#                 sigmoid_mask_save.save(f"/root/autodl-tmp/code/DeCLIP/test_masks/{self.times}_{i}_pre.png")
+                
+#                 gd_mask_save = gd_masks[i].detach().cpu().numpy()
+#                 gd_mask_save = (gd_mask_save * 255).astype(np.uint8)
+#                 gd_mask_save = Image.fromarray(gd_mask_save)
+#                 gd_mask_save.save(f"/root/autodl-tmp/code/DeCLIP/test_masks/{self.times}_{i}_gt.png")
+                
+#             self.times += 1
+                
+            iou = compute_batch_iou(sigmoid_masks, gd_masks)
             self.ious.extend(iou)
             
-            F1_best, F1_fixed = compute_batch_localization_f1(sigmoid_mask, mask)
+            F1_best, F1_fixed = compute_batch_localization_f1(sigmoid_masks, gd_masks)
             self.F1_best.extend(F1_best)
             self.F1_fixed.extend(F1_fixed)
             
-            ap = compute_batch_ap(sigmoid_mask, mask)
-            self.ap.extend(ap)
-            
-            self.logit.append(logit)
+            self.logits.append(logits)
             self.labels.append(self.label)
             
         else:
@@ -160,7 +193,9 @@ class Trainer(BaseModel):
         
         # xjw
         if self.opt.mask_plus_label:
-            self.loss = self.loss_fn(mask, self.mask) + self.loss_fn(logit, self.label)
+            self.loss = (0.5 - self.lovasz_weight) * self.loss_fn(masks, self.mask) +  self.lovasz_weight * lovasz_hinge(masks, self.mask) + 0.5 * self.loss_fn(logits, self.label)
+            # self.loss = 0.5 * self.loss_fn(masks, self.mask) + 0.5 * self.loss_fn(logits, self.label)
+            # self.loss = self.loss_fn(masks, self.mask)
         else:
             self.loss = self.loss_fn(outputs, self.label)
         

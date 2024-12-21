@@ -8,7 +8,7 @@ import re
 
 # Model for localisation
 class CLIPModelLocalisation(nn.Module):
-    def __init__(self, name, intermidiate_layer_output = None, decoder_type = "conv-4"):
+    def __init__(self, name, intermidiate_layer_output = None, decoder_type = "conv-4", mask_plus_label=False):
         super(CLIPModelLocalisation, self).__init__()
         
         self.intermidiate_layer_output = intermidiate_layer_output
@@ -20,6 +20,39 @@ class CLIPModelLocalisation(nn.Module):
 
         self._set_backbone()
         self._set_decoder()
+        
+        # xjw
+        self.mask_plus_label = mask_plus_label
+        if self.mask_plus_label:
+            self._set_cls_conv()
+        
+    def _set_cls_conv(self):
+        # xjw
+        self.conv_cls = nn.Sequential(
+            # First Conv2d Layer
+            nn.Conv2d(64, 1024, kernel_size=3, stride=1, padding=1),  # [64, 1024, 256, 256]
+            nn.ReLU(),
+
+            # First AdaptiveAvgPool2d Layer
+            nn.AdaptiveAvgPool2d((32, 32)),  # [64, 1024, 32, 32]
+
+            # Second Conv2d Layer
+            nn.Conv2d(1024, 512, kernel_size=3, stride=1, padding=1),  # [64, 512, 32, 32]
+            nn.ReLU(),
+
+            # Second AdaptiveAvgPool2d Layer
+            nn.AdaptiveAvgPool2d((8, 8)),  # [64, 512, 8, 8]
+
+            # Third Conv2d Layer
+            nn.Conv2d(512, 256, kernel_size=1, stride=1),  # [64, 256, 8, 8]
+            nn.ReLU(),
+
+            # Third AdaptiveAvgPool2d Layer
+            nn.AdaptiveAvgPool2d((1, 1)),  # [64, 256, 1, 1]
+
+            # Fourth Conv2d Layer
+            nn.Conv2d(256, 1, kernel_size=1, stride=1)  # [64, num_classes, 1, 1]
+        )
 
     def _set_backbone(self):    
         # Set up the backbone model architecture and parameters
@@ -193,7 +226,32 @@ class CLIPModelLocalisation(nn.Module):
         else:
             features = features[1:]
             output = self._feature_map_transform(features)
-            output = self.fc(output)
-
-        output = torch.flatten(output, start_dim =1)
-        return output
+            # output = self.fc(output)
+            if not self.mask_plus_label:
+                output = self.fc(output)
+            else:
+                # xjw
+                stored_feature = []
+                for i, layer in enumerate(self.fc[:-2]):
+                    output = layer(output)
+                    
+                feature = self.fc[-2](output)
+                binary_map = self.fc[-1](feature)
+                # binary_map = self.fc(output)
+        
+        if not self.mask_plus_label:
+            output = torch.flatten(output, start_dim =1)
+            return output
+        else:
+            # xjw
+            outputs = {}
+            outputs["mask"] = torch.flatten(binary_map, start_dim=1)
+            
+            guided_feature = feature * torch.sigmoid(binary_map)
+            
+            logits = self.conv_cls(guided_feature)
+            outputs["logit"] = torch.flatten(logits, start_dim=1).squeeze()
+            
+            return outputs
+            
+            

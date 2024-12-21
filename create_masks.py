@@ -30,7 +30,7 @@ def create_single_mask(image_path):
         h, w, c = image.shape
     except:
         h, w = image.shape
-    mask = Image.new("RGB", (h, w), color=(label,label,label))
+    mask = Image.new("RGB", (w, h), color=(label,label,label))
     
     return mask
 
@@ -49,4 +49,4 @@ def create_masks(img_folder, mask_folder):
             pbar.update(1)
             
 create_masks(train_path, mask_train_path)
-# create_masks(val_path, mask_val_path)
+create_masks(val_path, mask_val_path)

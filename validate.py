@@ -2,18 +2,20 @@ import argparse
 import os
 import torch
 import torch.utils.data
+import torch.nn as nn
 import numpy as np
 from models import get_model
 from PIL import Image, ImageOps
-from dataset_paths import DETECTION_DATASET_PATHS, LOCALISATION_DATASET_PATHS
+from dataset_paths import DETECTION_DATASET_PATHS, LOCALISATION_DATASET_PATHS, MASKED_DETECTION_DATASET_PATHS
 import random
 import shutil
 from utils.utils import compute_batch_iou, compute_batch_localization_f1, compute_batch_ap, generate_outputs, find_best_threshold, compute_accuracy_detection, compute_average_precision_detection
-from data.datasets import RealFakeDataset, RealFakeDetectionDataset
+from data.datasets import RealFakeDataset, RealFakeDetectionDataset, RealFakeMaskedDetectionDataset, RealFakeMaskedDetectionDataset_V2
 import torchvision
 from torchvision.transforms import functional as F
 from torchvision import transforms
 from options.test_options import TestOptions
+from tqdm import tqdm
 
 from shape_check import register_hooks_recursive
 
@@ -107,6 +109,122 @@ def validate_fully_supervised(model, loader, dataset_name, output_save_path = ''
 
     return ious, f1_best, f1_fixed, mean_ap, all_img_paths
 
+# xjw
+def validate_masked_detection(model, loader):
+    with torch.no_grad():
+        ious = []
+        f1_best = []
+        f1_fixed = []
+        y_true, y_pred = [], []
+        all_img_paths = []
+        print("Length of dataset: %d" %(len(loader.dataset)))
+        
+        with tqdm(total=len(loader)) as pbar:
+            for _, data in enumerate(loader):
+                img, label, _, img_paths, mask_paths = data
+
+                in_tens = img.cuda()
+                outputs = model(in_tens)
+
+                masks = outputs["mask"]
+                logits = outputs["logit"]
+                masks = torch.sigmoid(masks.squeeze(1))
+                logits = torch.sigmoid(logits)
+
+                gd_masks = [Image.open(mask_path).convert("L") for mask_path in mask_paths]
+                gd_masks = [((transforms.ToTensor()(x).to(masks.device)) > 0.5).float().squeeze() for x in gd_masks]
+
+                masks = masks.view(masks.size(0), int(masks.size(1)**0.5), int(masks.size(1)**0.5))
+                resized_masks = []
+                for i, mask in enumerate(masks):
+                    if mask.size() != gd_masks[i].size():
+                        mask_resized = F.resize(mask.unsqueeze(0), gd_masks[i].size(), interpolation=torchvision.transforms.InterpolationMode.BILINEAR).squeeze(0)
+                        resized_masks.append(mask_resized)
+                    else:
+                        resized_masks.append(mask)
+
+                batch_ious = compute_batch_iou(resized_masks, gd_masks, threshold = 0.5)
+                batch_F1_best, batch_F1_fixed = compute_batch_localization_f1(resized_masks, gd_masks)
+
+                ious.extend(batch_ious)
+                f1_best.extend(batch_F1_best)
+                f1_fixed.extend(batch_F1_fixed)
+
+                y_pred.extend(logits)
+                y_true.extend(label)
+
+                all_img_paths.extend(img_paths)
+                
+                pbar.update(1)
+            
+        y_pred = torch.stack(y_pred).to('cpu')
+        y_true = torch.stack(y_true).to('cpu')
+        
+        best_thres = find_best_threshold(y_true, y_pred)
+        mean_acc_best_th = compute_accuracy_detection(y_pred, y_true, threshold = best_thres)
+        mean_acc = compute_accuracy_detection(y_pred, y_true)
+        mean_ap = compute_average_precision_detection(y_pred, y_true)
+                                   
+    return ious, f1_best, f1_fixed, mean_ap, mean_acc, mean_acc_best_th, best_thres, all_img_paths
+
+def validate_masked_detection_v2(model, loader):
+    with torch.no_grad():
+        ious = []
+        f1_best = []
+        f1_fixed = []
+        y_true, y_pred = [], []
+        all_img_paths = []
+        print("Length of dataset: %d" %(len(loader.dataset)))
+        
+        with tqdm(total=len(loader)) as pbar:
+            for _, data in enumerate(loader):
+                img, label, gd_masks, img_paths = data
+
+                in_tens = img.cuda()
+                outputs = model(in_tens)
+
+                masks = outputs["mask"]
+                logits = outputs["logit"]
+                masks = torch.sigmoid(masks.squeeze(1))
+                logits = torch.sigmoid(logits)
+
+                gd_masks = [((x.to(masks.device)) > 0.5).float().squeeze() for x in gd_masks]
+
+                masks = masks.view(masks.size(0), int(masks.size(1)**0.5), int(masks.size(1)**0.5))
+                resized_masks = []
+                for i, mask in enumerate(masks):
+                    if mask.size() != gd_masks[i].size():                
+                        mask_resized = F.resize(mask.unsqueeze(0), gd_masks[i].size(), interpolation=torchvision.transforms.InterpolationMode.BILINEAR).squeeze(0)
+                        resized_masks.append(mask_resized)
+                    else:
+                        resized_masks.append(mask)
+
+                batch_ious = compute_batch_iou(resized_masks, gd_masks, threshold = 0.5)
+                batch_F1_best, batch_F1_fixed = compute_batch_localization_f1(resized_masks, gd_masks)
+
+                ious.extend(batch_ious)
+                f1_best.extend(batch_F1_best)
+                f1_fixed.extend(batch_F1_fixed)
+
+                y_pred.extend(logits)
+                y_true.extend(label)
+
+                all_img_paths.extend(img_paths)
+                
+                pbar.update(1)
+            
+        y_pred = torch.stack(y_pred).to('cpu')
+        y_true = torch.stack(y_true).to('cpu')
+        
+        best_thres = find_best_threshold(y_true, y_pred)
+        mean_acc_best_th = compute_accuracy_detection(y_pred, y_true, threshold = best_thres)
+        mean_acc = compute_accuracy_detection(y_pred, y_true)
+        mean_ap = compute_average_precision_detection(y_pred, y_true)
+                                   
+    return ious, f1_best, f1_fixed, mean_ap, mean_acc, mean_acc_best_th, best_thres, all_img_paths
+
+            
+        
 def save_scores_to_file(ious, f1_best, f1_fixed, aps, img_paths, file_path):
     with open(file_path + "/scores.txt", 'w') as file:
         file.write(f'Image path \t iou \t f1_best \t f1_fixed \t ap\n')
@@ -137,7 +255,7 @@ if __name__ == '__main__':
     print ("Model loaded..")
     
     model.eval()
-    model.cuda()
+    model.to(opt.gpu_ids[0])
 
     if os.path.exists(opt.result_folder):
         shutil.rmtree(opt.result_folder)
@@ -148,6 +266,10 @@ if __name__ == '__main__':
         # Create and write the header of results file
         with open( os.path.join(opt.result_folder,'scores.txt'), 'a') as f:
             f.write('dataset \t iou \t f1_best \t f1_fixed \t ap \n' )
+    elif opt.mask_plus_label:
+        dataset_paths = MASKED_DETECTION_DATASET_PATHS
+        with open( os.path.join(opt.result_folder,'scores.txt'), 'a') as f:
+            f.write('dataset \t iou \t f1_best \t f1_fixed \t AP \t Acc_fixed \t Acc_best \t Best_threshold \n' )
     else:
         dataset_paths = DETECTION_DATASET_PATHS
         with open( os.path.join(opt.result_folder,'scores.txt'), 'a') as f:
@@ -159,12 +281,18 @@ if __name__ == '__main__':
 
         set_seed()
         opt.test_path = dataset_path['fake_path']
-        opt.test_masks_ground_truth_path = dataset_path['masks_path']
         opt.train_dataset = dataset_path['key']
 
         if opt.fully_supervised:
+            opt.test_masks_ground_truth_path = dataset_path['masks_path']
             dataset = RealFakeDataset(opt)
+        elif opt.mask_plus_label:
+            opt.test_masks_ground_truth_path = dataset_path['fake_masks_path']
+            opt.test_masks_real_ground_truth_path = dataset_path['real_masks_path']
+            opt.test_real_list_path = dataset_path['real_path']
+            dataset = RealFakeMaskedDetectionDataset_V2(opt)
         else:
+            opt.test_masks_ground_truth_path = dataset_path['masks_path']
             opt.test_real_list_path = dataset_path['real_path']
             dataset = RealFakeDetectionDataset(opt)
 
@@ -196,9 +324,41 @@ if __name__ == '__main__':
                 print(dataset_path['key']+': F1_fixed = ' + str(round(mean_f1_fixed, 4)))
                 print(dataset_path['key']+': AP = ' + str(round(mean_ap, 4)))
                 print()
+                
+        # Masked detection
+        if opt.mask_plus_label:
+            if opt.output_save_path:
+                output_save_path = opt.output_save_path + "/" + dataset_path['key']
+                if not os.path.exists(output_save_path):
+                    os.makedirs(output_save_path)
+            
+            ious, f1_best, f1_fixed, mean_ap, mean_acc, mean_acc_best_th, best_thres, all_img_paths = validate_masked_detection_v2(model, loader)
+            
+            mean_iou = sum(ious)/len(ious)
+            mean_f1_best = sum(f1_best)/len(f1_best)
+            mean_f1_fixed = sum(f1_fixed)/len(f1_fixed)
+            
+            with open(os.path.join(opt.result_folder, 'scores.txt'), 'a') as f:
+                f.write(dataset_path['key']+': ' + str(round(mean_iou, 3)) + '\t' +\
+                       str(round(mean_f1_best, 4)) + '\t' +\
+                       str(round(mean_f1_fixed, 4)) + '\t' +\
+                       str(round(mean_ap, 4)) + '\t' +\
+                       str(round(mean_acc, 4)) + '\t' +\
+                       str(round(mean_acc_best_th, 4)) + '\t' +\
+                       str(best_thres) + '\t' +\
+                       '\n' )
+                print(dataset_path['key']+': IOU = ' + str(round(mean_iou, 3)))
+                print(dataset_path['key']+': F1_best = ' + str(round(mean_f1_best, 4)))
+                print(dataset_path['key']+': F1_fixed = ' + str(round(mean_f1_fixed, 4)))
+                print(dataset_path['key']+': AP = ' + str(round(mean_ap, 4)))
+                print(dataset_path['key']+': Acc_fixed = ' + str(round(mean_acc, 4)))
+                print(dataset_path['key']+': Acc_best = ' + str(round(mean_acc_best_th, 4)))
+                print(dataset_path['key']+': Best_threshold = ' + str(best_thres))
+                print()
+            
 
         # Detection
-        else:
+        if not opt.fully_supervised and not opt.mask_plus_label:
             mean_ap, mean_acc, mean_acc_best_th, best_thres, all_img_paths = validate(model, loader)
 
             with open( os.path.join(opt.result_folder,'scores.txt'), 'a') as f:

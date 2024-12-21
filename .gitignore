@@ -1,10 +1,6 @@
-checkpoints/
+checkpoint/
 .ipynb_checkpoints/
-data/.ipynb_checkpoints/
-models/.ipynb_checkpoints/
-networks/.ipynb_checkpoints/
-options/.ipynb_checkpoints/
-results/.ipynb_checkpoints/
-utils/.ipynb_checkpoints/
+*/.ipynb_checkpoints/
 __pycache__/
+*/__pycache__/
 plots.ipynb

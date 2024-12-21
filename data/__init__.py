@@ -1,5 +1,5 @@
 import torch
-from .datasets import RealFakeDataset, RealFakeDetectionDataset, RealFakeMaskedDetectionDataset
+from .datasets import RealFakeDataset, RealFakeDetectionDataset, RealFakeMaskedDetectionDataset, RealFakeMaskedDetectionDataset_V2
 
 
 def create_dataloader(opt):
@@ -8,7 +8,8 @@ def create_dataloader(opt):
         dataset = RealFakeDataset(opt)
     elif opt.mask_plus_label:
         # xjw
-        dataset = RealFakeMaskedDataset(opt)
+        dataset = RealFakeMaskedDetectionDataset_V2(opt)
+        # dataset = RealFakeDataset(opt)
     else:
         dataset = RealFakeDetectionDataset(opt)
     
