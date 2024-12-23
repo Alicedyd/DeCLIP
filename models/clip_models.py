@@ -30,7 +30,7 @@ class CLIPModelLocalisation(nn.Module):
         # xjw
         self.conv_cls = nn.Sequential(
             # First Conv2d Layer
-            nn.Conv2d(64, 1024, kernel_size=3, stride=1, padding=1),  # [64, 1024, 256, 256]
+            nn.Conv2d(1, 1024, kernel_size=3, stride=1, padding=1),  # [64, 1024, 256, 256]
             nn.ReLU(),
 
             # First AdaptiveAvgPool2d Layer
@@ -231,13 +231,13 @@ class CLIPModelLocalisation(nn.Module):
                 output = self.fc(output)
             else:
                 # xjw
-                stored_feature = []
-                for i, layer in enumerate(self.fc[:-2]):
-                    output = layer(output)
+#                 stored_feature = []
+#                 for i, layer in enumerate(self.fc[:-2]):
+#                     output = layer(output)
                     
-                feature = self.fc[-2](output)
-                binary_map = self.fc[-1](feature)
-                # binary_map = self.fc(output)
+#                 feature = self.fc[-2](output)
+#                 binary_map = self.fc[-1](feature)
+                binary_map = self.fc(output)
         
         if not self.mask_plus_label:
             output = torch.flatten(output, start_dim =1)
@@ -247,7 +247,7 @@ class CLIPModelLocalisation(nn.Module):
             outputs = {}
             outputs["mask"] = torch.flatten(binary_map, start_dim=1)
             
-            guided_feature = feature * torch.sigmoid(binary_map)
+            guided_feature = binary_map * torch.sigmoid(binary_map)
             
             logits = self.conv_cls(guided_feature)
             outputs["logit"] = torch.flatten(logits, start_dim=1).squeeze()
