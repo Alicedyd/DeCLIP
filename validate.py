@@ -17,8 +17,6 @@ from torchvision import transforms
 from options.test_options import TestOptions
 from tqdm import tqdm
 
-from shape_check import register_hooks_recursive
-
 
 SEED = 0
 def set_seed():

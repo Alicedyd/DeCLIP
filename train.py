@@ -107,9 +107,6 @@ if __name__ == '__main__':
         
             model.logits = []
             model.labels = []
-            
-        # Save the model for epoch 
-        model.save_networks(f'model_epoch_{epoch}.pth')
 
         # Validation
         model.eval()

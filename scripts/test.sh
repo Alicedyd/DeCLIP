@@ -4,4 +4,3 @@
                     --result_folder=/root/autodl-tmp/code/DeCLIP/results/$CHECK_POINT_PATH --gpu_ids 2 \
                     --mask_plus_label \
                     --batch_size 16 \
-| tee log.txt
