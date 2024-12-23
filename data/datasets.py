@@ -9,6 +9,7 @@ import numpy as np
 from random import shuffle
 
 from .cutmix import *
+from .drct_aug import albumentations_transform, PILToAlbumentations
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -54,7 +55,12 @@ class BaseDataset(Dataset):
         pass
 
     def _get_transform(self):
-        transform_list = [transforms.Resize((224, 224)), transforms.ToTensor(), transforms.Normalize(mean=MEAN, std=STD)]
+        if self.opt.data_label == "train":
+            transform_list = [transforms.RandomCrop(size=(224, 224), pad_if_needed=True)]
+        else:
+            transform_list = [transforms.CenterCrop(size=(224, 224))]
+        transform_list.extend([transforms.ToTensor(), transforms.Normalize(mean=MEAN, std=STD)])
+        
         if self.opt.data_label == 'train':
             if self.opt.data_aug == "blur":
                 transform_list.insert(1, transforms.GaussianBlur(kernel_size=5, sigma=(0.4, 2.0)))
@@ -66,6 +72,8 @@ class BaseDataset(Dataset):
                 transform_list.insert(1, transforms.ColorJitter(0.3, 0.3, 0.3, 0.3))
                 transform_list.insert(2, transforms.Lambda(randomJPEGcompression))
                 transform_list.insert(3, transforms.GaussianBlur(kernel_size=5, sigma=(0.4, 2.0)))
+            elif self.opt.data_aug == "drct":
+                transform_list = [PILToAlbumentations(albumentations_transform, mean=MEAN, std=STD, size=224)]
         return transforms.Compose(transform_list)
 
     def __len__(self):
