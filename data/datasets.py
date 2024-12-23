@@ -34,7 +34,6 @@ def get_list(path, must_contain=''):
         return [item for item in image_list if must_contain in item]
     return recursively_read(path, must_contain)
 
-def randomJPEGcompression(image):
     qf = random.randint(30, 100)
     output_io_stream = BytesIO()
     image.save(output_io_stream, "JPEG", quality=qf, optimize=True)
@@ -260,8 +259,17 @@ class RealFakeMaskedDetectionDataset_V2(BaseDataset):
         self.prob_aug = 0.5
         
     def _get_data(self):
-        fake_list = get_list(self.input_path)
-        real_list = get_list(self.input_path_real)
+        input_paths = self.input_path.split(",")
+        input_real_paths = self.input_path_real.split(",")
+        
+        fake_list = []
+        real_list = []
+        
+        for input_path in input_paths:
+            fake_list.extend(get_list(input_path))
+            
+        for input_real_path in input_real_paths:
+            real_list.extend(get_list(input_real_path))
         
         return real_list, fake_list
     

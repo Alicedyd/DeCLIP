@@ -280,7 +280,7 @@ if __name__ == '__main__':
     elif opt.mask_plus_label:
         dataset_paths = MASKED_DETECTION_DATASET_PATHS_V2
         with open( os.path.join(opt.result_folder,'scores.txt'), 'a') as f:
-            f.write('dataset \t iou \t f1_best \t f1_fixed \t AP \t Acc_fixed \t Acc_best \t Best_threshold \n' )
+            f.write('dataset \t iou \t f1_best \t f1_fixed \t AP \t Acc_fixed \t Acc_best \n' )
     else:
         dataset_paths = DETECTION_DATASET_PATHS
         with open( os.path.join(opt.result_folder,'scores.txt'), 'a') as f:
@@ -356,7 +356,6 @@ if __name__ == '__main__':
                        str(round(mean_ap, 4)) + '\t' +\
                        str(round(mean_acc, 4)) + '\t' +\
                        str(round(mean_acc_best_th, 4)) + '\t' +\
-                       str(best_thres) + '\t' +\
                        '\n' )
                 print(dataset_path['key']+': IOU = ' + str(round(mean_iou, 3)))
                 print(dataset_path['key']+': F1_best = ' + str(round(mean_f1_best, 4)))
@@ -364,7 +363,6 @@ if __name__ == '__main__':
                 print(dataset_path['key']+': AP = ' + str(round(mean_ap, 4)))
                 print(dataset_path['key']+': Acc_fixed = ' + str(round(mean_acc, 4)))
                 print(dataset_path['key']+': Acc_best = ' + str(round(mean_acc_best_th, 4)))
-                print(dataset_path['key']+': Best_threshold = ' + str(best_thres))
                 print()
             
 
