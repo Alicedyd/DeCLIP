@@ -13,37 +13,6 @@ import itertools
 import torch
 import math
 
-def crop_img(img, lam):
-    """
-    :param img: 输入图像 (Tensor)，前景(C, H, W) 格式的 Tensor
-    :param lam: 混合比例 lambda，表示前景（贴的）占背景（被贴的）的比例
-    :return: 裁剪的前景 (Tensor)
-    """
-    # 获取图像的尺寸
-    H, W = img.shape[1], img.shape[2]  # 图像的高和宽
-    lam = torch.tensor(lam) if isinstance(lam, np.ndarray) else lam
-    # 裁剪区域的比例
-    cut_rat = torch.sqrt(lam)  # 裁剪区域的比例
-    cut_w = int(W * cut_rat)
-    cut_h = int(H * cut_rat)
-    
-    # 计算中心裁剪的起始位置
-    if W == cut_w:
-        start_x = 0
-    else:
-        start_x = (W - cut_w) // 2
-        
-    if H == cut_h:
-        start_y = 0
-    else:
-        start_y = (H - cut_h) // 2
-    
-    # 裁剪图像
-    cropped_img = img[:, start_y:start_y + cut_h, start_x:start_x + cut_w]
-    cropped_area = cropped_img.shape[1] * cropped_img.shape[2]  # 高度 * 宽度
-    
-    return cropped_img
-
 def cutmix_data(img1=None, img2=None, label1=0, label2=1, mask=None, transform=None):
     """
     :cutmix 
@@ -87,57 +56,37 @@ def mixup_data(img1, img2, label1, label2, alpha=1):
 
 def generate_mask(img, label, mixing_label, lam):
     """
-    :param H: 图像的高度
-    :param W: 图像的宽度
-    :param label: 后景标签
-    :param mixing_label: 前景标签
+    :param img: 输入图像，形状为 (C, H, W)
     :param lam: 混合比例 lambda，表示前景的比例（为0）
-    
-    :return: mxing_mask 用于混合后景和前景(后景 * mixing_mask + 前景 * (1 - mixing_mask)), 
-             label_mask 用于训练的标签mask
+    :return: mask, 后景 * mask + 前景 * (1 - mask)
     """
-    # 转换 lam 为 tensor 类型
-    # lam = torch.tensor(lam) if isinstance(lam, np.ndarray) else lam
-    
-    H, W = img.shape[1], img.shape[2]  
-    
-    # 裁剪区域的比例
-    # cut_rat = torch.sqrt(lam)  # 裁剪区域的比例
-    cut_rat = math.sqrt(lam) 
-    cut_w = int(W * cut_rat)
-    cut_h = int(H * cut_rat)
-    
-    # 计算中心裁剪的起始位置
-    if W == cut_w:
-        start_x = 0
-    else:
-        start_x = (W - cut_w) // 2
-        
-    if H == cut_h:
-        start_y = 0
-    else:
-        start_y = (H - cut_h) // 2
-    
-    # 生成掩码：首先初始化一个全1的 mask
+    H, W = img.shape[1], img.shape[2]  # 获取图像的高度和宽度
+
+    # 定义 patch 的大小
+    patch_size = 14
+
+    # 计算 patch 的数量
+    patch_H_number = H // patch_size
+    patch_W_number = W // patch_size
+
+    # 初始化一个全1的 mask，与图像大小相同
     mixing_mask = torch.ones((H, W), dtype=torch.float32)
     label_mask = torch.full((H, W), label, dtype=torch.float32)
 
-    # 生成一个全0的 mask
-    mixing_mask_crop = torch.zeros((cut_h, cut_w), dtype=torch.float32)
-    label_mask_crop = torch.full((cut_h, cut_w), mixing_label, dtype=torch.float32)
-    
-    # 确保裁剪图像能够完全放置在背景图像上
-    if cut_h > H or cut_w > W:
-        raise ValueError("裁剪图像的尺寸大于背景图像，无法粘贴。")
+    # 计算要置为0的patch数量，基于 lambda
+    num_patches = patch_H_number * patch_W_number
+    num_zero_patches = int(num_patches * (1 - lam))
 
-    # 随机选择放置位置
-    max_x = W - cut_w
-    max_y = H - cut_h
-    rand_x = random.randint(0, max_x)
-    rand_y = random.randint(0, max_y)
+    # 随机选择若干个 patch 的索引，将其置为 0
+    zero_indices = random.sample(range(num_patches), num_zero_patches)
+    for idx in zero_indices:
+        row = idx // patch_W_number
+        col = idx % patch_W_number
+        start_y = row * patch_size
+        start_x = col * patch_size
 
-    # 将全0mask图像粘贴到全1mask图像的随机位置
-    mixing_mask[rand_y:rand_y + cut_h, rand_x:rand_x + cut_w] = mixing_mask_crop
-    label_mask[rand_y:rand_y + cut_h, rand_x:rand_x + cut_w] = label_mask_crop
+        # 将对应的 14x14 区域置为 0
+        mixing_mask[start_y:start_y + patch_size, start_x:start_x + patch_size] = 0
+        label_mask[start_y:start_y + patch_size, start_x:start_x + patch_size] = mixing_label
 
     return mixing_mask, label_mask
