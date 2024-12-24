@@ -79,6 +79,8 @@ class Trainer(BaseModel):
             self.logits = []
             self.labels = []
             
+        self.times = 0 # for visualize
+            
 
     def adjust_learning_rate(self, min_lr=1e-6):
         for param_group in self.optimizer.param_groups:
@@ -156,22 +158,11 @@ class Trainer(BaseModel):
             # xjw
             sigmoid_masks = torch.sigmoid(masks)
             
+            sigmoid_masks = torch.where(sigmoid_masks > 0.5, torch.tensor(1.0, device=sigmoid_masks.device), torch.tensor(0.0, device=sigmoid_masks.device))
+            
             # unflatten mask and ground truth masks
             sigmoid_masks = sigmoid_masks.view(sigmoid_masks.size(0), int(sigmoid_masks.size(1)**0.5), int(sigmoid_masks.size(1)**0.5))
             gd_masks = self.mask.view(self.mask.size(0), int(self.mask.size(1)**0.5), int(self.mask.size(1)**0.5))
-            
-#             for i in range(sigmoid_masks.size(0)):
-#                 sigmoid_mask_save = sigmoid_masks[i].detach().cpu().numpy()
-#                 sigmoid_mask_save = (sigmoid_mask_save * 255).astype(np.uint8)
-#                 sigmoid_mask_save = Image.fromarray(sigmoid_mask_save)
-#                 sigmoid_mask_save.save(f"/root/autodl-tmp/code/DeCLIP/test_masks/{self.times}_{i}_pre.png")
-                
-#                 gd_mask_save = gd_masks[i].detach().cpu().numpy()
-#                 gd_mask_save = (gd_mask_save * 255).astype(np.uint8)
-#                 gd_mask_save = Image.fromarray(gd_mask_save)
-#                 gd_mask_save.save(f"/root/autodl-tmp/code/DeCLIP/test_masks/{self.times}_{i}_gt.png")
-                
-#             self.times += 1
                 
             iou = compute_batch_iou(sigmoid_masks, gd_masks)
             self.ious.extend(iou)

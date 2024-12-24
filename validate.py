@@ -165,7 +165,7 @@ def validate_masked_detection(model, loader):
                                    
     return ious, f1_best, f1_fixed, mean_ap, mean_acc, mean_acc_best_th, best_thres, all_img_paths
 
-def validate_masked_detection_v2(model, loader):
+def validate_masked_detection_v2(model, loader, visualize_mask=False, output_folder="", dataset_name=""):
     with torch.no_grad():
         ious = []
         f1_best = []
@@ -174,8 +174,16 @@ def validate_masked_detection_v2(model, loader):
         all_img_paths = []
         print("Length of dataset: %d" %(len(loader.dataset)))
         
+        if visualize_mask:
+            # preparation for visualizing masks
+            os.makedirs(os.path.join(output_folder, dataset_name), exist_ok=True)
+            mask_save_path = os.path.join(output_folder, dataset_name, "predicted_masks")
+            gd_mask_save_path = os.path.join(output_folder, dataset_name, "ground_truth_masks")
+            os.makedirs(mask_save_path, exist_ok=True)
+            os.makedirs(gd_mask_save_path, exist_ok=True)
+        
         with tqdm(total=len(loader), ncols=150) as pbar:
-            for _, data in enumerate(loader):
+            for batch_idx, data in enumerate(loader):
                 img, label, gd_masks, img_paths = data
 
                 in_tens = img.cuda()
@@ -196,6 +204,25 @@ def validate_masked_detection_v2(model, loader):
                         resized_masks.append(mask_resized)
                     else:
                         resized_masks.append(mask)
+                        
+                if visualize_mask:
+                    # visualize the masks
+                    for i, (mask, gd_mask) in enumerate(zip(resized_masks, gd_masks)):
+                        # Binarize predicted mask
+                        binary_mask = (mask > 0.5).float()
+
+                        # Convert to uint8 images
+                        binary_mask_np = (binary_mask.cpu().numpy() * 255).astype(np.uint8)
+                        gd_mask_np = (gd_mask.cpu().numpy() * 255).astype(np.uint8)
+
+                        # Save predicted mask
+                        pred_mask_img = Image.fromarray(binary_mask_np)
+                        pred_mask_img.save(os.path.join(mask_save_path, f"batch{batch_idx}_sample{i}_pred.png"))
+
+                        # Save ground truth mask
+                        gt_mask_img = Image.fromarray(gd_mask_np)
+                        gt_mask_img.save(os.path.join(gd_mask_save_path, f"batch{batch_idx}_sample{i}_gt.png"))
+
 
                 batch_ious = compute_batch_iou(resized_masks, gd_masks, threshold = 0.5)
                 batch_F1_best, batch_F1_fixed = compute_batch_localization_f1(resized_masks, gd_masks)
@@ -343,7 +370,10 @@ if __name__ == '__main__':
                 if not os.path.exists(output_save_path):
                     os.makedirs(output_save_path)
             
-            ious, f1_best, f1_fixed, mean_ap, mean_acc, mean_acc_best_th, best_thres, all_img_paths = validate_masked_detection_v2(model, loader)
+            if opt.visualize_masks:
+                ious, f1_best, f1_fixed, mean_ap, mean_acc, mean_acc_best_th, best_thres, all_img_paths = validate_masked_detection_v2(model, loader, visualize_mask=True, output_folder=opt.result_folder, dataset_name=dataset_path['key'])
+            else:
+                ious, f1_best, f1_fixed, mean_ap, mean_acc, mean_acc_best_th, best_thres, all_img_paths = validate_masked_detection_v2(model, loader)
             
             mean_iou = sum(ious)/len(ious)
             mean_f1_best = sum(f1_best)/len(f1_best)
