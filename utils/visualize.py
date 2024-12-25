@@ -58,25 +58,27 @@ def visualize_fused_image(img, gd_mask, pred_mask, fused_img, save_path, file_na
     
     # Plot the original image
     axs[0].imshow(img.permute(1, 2, 0).cpu().numpy())
-    axs[0].set_title("Original Image")
+    axs[0].set_title("Original Image", pad=10)
     axs[0].axis("off")
     
     # Plot the ground truth mask
     axs[1].imshow(gd_mask.cpu().numpy(), cmap='gray')
-    axs[1].set_title("Ground Truth Mask")
+    axs[1].set_title("Ground Truth Mask", pad=10)
     axs[1].axis("off")
     
     # Plot the predicted mask
     axs[2].imshow(pred_mask.cpu().numpy(), cmap='gray')
-    axs[2].set_title("Predicted Mask")
+    axs[2].set_title("Predicted Mask", pad=10)
     axs[2].axis("off")
     
     # Plot the fused image
     axs[3].imshow(fused_img.permute(1, 2, 0).cpu().numpy())
-    axs[3].set_title("Fused Image")
+    axs[3].set_title("Fused Image", pad=10)
     axs[3].axis("off")
     
     # Adjust layout and save the figure
-    plt.tight_layout()
-    plt.savefig(f"{save_path}/{file_name}.png")
+    # Adjust layout and save the figure
+    plt.tight_layout(pad=2)
+    plt.subplots_adjust(wspace=0.3)  # Optional: Adjust spacing
+    plt.savefig(f"{save_path}/{file_name}.jpg")
     plt.close()

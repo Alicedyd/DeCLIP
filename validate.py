@@ -299,7 +299,7 @@ if __name__ == '__main__':
     # Load model
     model = get_model(opt)
     if len(opt.gpu_ids) > 1:
-        self.model = nn.DataParallel(self.model, device_ids=opt.gpu_ids)
+        model = nn.DataParallel(model, device_ids=opt.gpu_ids)
         new_state_dict = state_dict['model']
     else:
         # remove the "module." prefix in state_dict['model']

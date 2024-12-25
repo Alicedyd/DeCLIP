@@ -59,6 +59,7 @@ class BaseDataset(Dataset):
             transform_list = [transforms.RandomCrop(size=(224, 224), pad_if_needed=True)]
         else:
             transform_list = [transforms.CenterCrop(size=(224, 224))]
+            # transform_list = [transforms.Resize(size=(224, 224))]
         transform_list.extend([transforms.ToTensor(), transforms.Normalize(mean=MEAN, std=STD)])
         
         if self.opt.data_label == 'train':
@@ -331,7 +332,7 @@ class RealFakeMaskedDetectionDataset_V2(BaseDataset):
             img = Image.open(img_path).convert("RGB")
             img = self.transform(img)
             
-            mixing_img = Image.open(img_path).convert("RGB")
+            mixing_img = Image.open(mixing_img_path).convert("RGB")
             mixing_img = self.transform(mixing_img)
             
             lam = random.random()
