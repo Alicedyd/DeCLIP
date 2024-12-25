@@ -9,6 +9,7 @@ import numpy as np
 from random import shuffle
 
 from .cutmix import *
+from .drct_aug import albumentations_transform, PILToAlbumentations
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -34,7 +35,6 @@ def get_list(path, must_contain=''):
         return [item for item in image_list if must_contain in item]
     return recursively_read(path, must_contain)
 
-def randomJPEGcompression(image):
     qf = random.randint(30, 100)
     output_io_stream = BytesIO()
     image.save(output_io_stream, "JPEG", quality=qf, optimize=True)
@@ -55,7 +55,13 @@ class BaseDataset(Dataset):
         pass
 
     def _get_transform(self):
-        transform_list = [transforms.Resize((224, 224)), transforms.ToTensor(), transforms.Normalize(mean=MEAN, std=STD)]
+        if self.opt.data_label == "train":
+            transform_list = [transforms.RandomCrop(size=(224, 224), pad_if_needed=True)]
+        else:
+            transform_list = [transforms.CenterCrop(size=(224, 224))]
+            # transform_list = [transforms.Resize(size=(224, 224))]
+        transform_list.extend([transforms.ToTensor(), transforms.Normalize(mean=MEAN, std=STD)])
+        
         if self.opt.data_label == 'train':
             if self.opt.data_aug == "blur":
                 transform_list.insert(1, transforms.GaussianBlur(kernel_size=5, sigma=(0.4, 2.0)))
@@ -67,6 +73,8 @@ class BaseDataset(Dataset):
                 transform_list.insert(1, transforms.ColorJitter(0.3, 0.3, 0.3, 0.3))
                 transform_list.insert(2, transforms.Lambda(randomJPEGcompression))
                 transform_list.insert(3, transforms.GaussianBlur(kernel_size=5, sigma=(0.4, 2.0)))
+            elif self.opt.data_aug == "drct":
+                transform_list = [PILToAlbumentations(albumentations_transform, mean=MEAN, std=STD, size=224)]
         return transforms.Compose(transform_list)
 
     def __len__(self):
@@ -260,8 +268,17 @@ class RealFakeMaskedDetectionDataset_V2(BaseDataset):
         self.prob_aug = 0.5
         
     def _get_data(self):
-        fake_list = get_list(self.input_path)
-        real_list = get_list(self.input_path_real)
+        input_paths = self.input_path.split(",")
+        input_real_paths = self.input_path_real.split(",")
+        
+        fake_list = []
+        real_list = []
+        
+        for input_path in input_paths:
+            fake_list.extend(get_list(input_path))
+            
+        for input_real_path in input_real_paths:
+            real_list.extend(get_list(input_real_path))
         
         return real_list, fake_list
     
@@ -315,7 +332,7 @@ class RealFakeMaskedDetectionDataset_V2(BaseDataset):
             img = Image.open(img_path).convert("RGB")
             img = self.transform(img)
             
-            mixing_img = Image.open(img_path).convert("RGB")
+            mixing_img = Image.open(mixing_img_path).convert("RGB")
             mixing_img = self.transform(mixing_img)
             
             lam = random.random()

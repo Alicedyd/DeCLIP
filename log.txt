@@ -517,12 +517,6 @@ CLIPModelLocalisation(
     (64): Conv2d(64, 1, kernel_size=(5, 5), stride=(1, 1), padding=(2, 2))
   )
 )
-Testing on stable-diffusion-2-inpainting
-Length of dataset: 10000
-stable-diffusion-2-inpainting: AP = 0.5161
-stable-diffusion-2-inpainting: Acc_fixed = 50.13
-stable-diffusion-2-inpainting: Acc_best = 51.87
-stable-diffusion-2-inpainting: Best_threshold = 0.0947
 
 
 (0) Layer: Conv2d, Output shape: torch.Size([64, 512, 16, 16])

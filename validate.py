@@ -6,7 +6,7 @@ import torch.nn as nn
 import numpy as np
 from models import get_model
 from PIL import Image, ImageOps
-from dataset_paths import DETECTION_DATASET_PATHS, LOCALISATION_DATASET_PATHS, MASKED_DETECTION_DATASET_PATHS
+from dataset_paths import DETECTION_DATASET_PATHS, LOCALISATION_DATASET_PATHS, MASKED_DETECTION_DATASET_PATHS, MASKED_DETECTION_DATASET_PATHS_V2
 import random
 import shutil
 from utils.utils import compute_batch_iou, compute_batch_localization_f1, compute_batch_ap, generate_outputs, find_best_threshold, compute_accuracy_detection, compute_average_precision_detection
@@ -17,7 +17,7 @@ from torchvision import transforms
 from options.test_options import TestOptions
 from tqdm import tqdm
 
-from shape_check import register_hooks_recursive
+from utils.visualize import *
 
 
 SEED = 0
@@ -167,7 +167,7 @@ def validate_masked_detection(model, loader):
                                    
     return ious, f1_best, f1_fixed, mean_ap, mean_acc, mean_acc_best_th, best_thres, all_img_paths
 
-def validate_masked_detection_v2(model, loader):
+def validate_masked_detection_v2(model, loader, visualize_mask=False, output_folder="", dataset_name=""):
     with torch.no_grad():
         ious = []
         f1_best = []
@@ -176,8 +176,14 @@ def validate_masked_detection_v2(model, loader):
         all_img_paths = []
         print("Length of dataset: %d" %(len(loader.dataset)))
         
-        with tqdm(total=len(loader)) as pbar:
-            for _, data in enumerate(loader):
+        if visualize_mask:
+            # preparation for visualizing masks
+            os.makedirs(os.path.join(output_folder, dataset_name), exist_ok=True)
+            mask_save_path = os.path.join(output_folder, dataset_name)
+            os.makedirs(mask_save_path, exist_ok=True)
+        
+        with tqdm(total=len(loader), ncols=150) as pbar:
+            for batch_idx, data in enumerate(loader):
                 img, label, gd_masks, img_paths = data
 
                 in_tens = img.cuda()
@@ -198,6 +204,47 @@ def validate_masked_detection_v2(model, loader):
                         resized_masks.append(mask_resized)
                     else:
                         resized_masks.append(mask)
+                        
+                if visualize_mask:
+                    # visualize the masks
+                    for i, (mask, gd_mask) in enumerate(zip(resized_masks, gd_masks)):
+#                         # Binarize predicted mask
+#                         binary_mask = (mask > 0.5).float()
+
+#                         # Convert to uint8 images
+#                         binary_mask_np = (binary_mask.cpu().numpy() * 255).astype(np.uint8)
+#                         gd_mask_np = (gd_mask.cpu().numpy() * 255).astype(np.uint8)
+
+#                         # Save predicted mask
+#                         pred_mask_img = Image.fromarray(binary_mask_np)
+#                         pred_mask_img.save(os.path.join(mask_save_path, f"batch{batch_idx}_sample{i}_pred.png"))
+
+#                         # Save ground truth mask
+#                         gt_mask_img = Image.fromarray(gd_mask_np)
+#                         gt_mask_img.save(os.path.join(gd_mask_save_path, f"batch{batch_idx}_sample{i}_gt.png"))
+                        img_name = os.path.basename(img_paths[i])
+                        img_prefix = img_name.split(".")[0]
+                        file_name = f"{img_prefix}_visualize"
+    
+                        binary_mask = (mask > 0.5).float().cpu()
+                        
+                        binary_mask = binary_mask.unsqueeze(0).unsqueeze(0)
+                        binary_mask = torch.nn.functional.interpolate(binary_mask, size=(224, 224), mode='bilinear', align_corners=False)
+                        binary_mask = binary_mask.squeeze(0).squeeze(0)
+        
+                        # 应用预测掩码进行高低光融合
+                        fused_img = apply_masked_highlight(img[i], binary_mask)
+
+                        # 可视化
+                        visualize_fused_image(
+                            img=img[i], 
+                            gd_mask=gd_mask, 
+                            pred_mask=binary_mask, 
+                            fused_img=fused_img,
+                            save_path=mask_save_path,
+                            file_name=file_name,
+                        )
+
 
                 batch_ious = compute_batch_iou(resized_masks, gd_masks, threshold = 0.5)
                 batch_F1_best, batch_F1_fixed = compute_batch_localization_f1(resized_masks, gd_masks)
@@ -251,7 +298,20 @@ if __name__ == '__main__':
 
     # Load model
     model = get_model(opt)
-    model.load_state_dict(state_dict['model'], strict=False)
+    if len(opt.gpu_ids) > 1:
+        model = nn.DataParallel(model, device_ids=opt.gpu_ids)
+        new_state_dict = state_dict['model']
+    else:
+        # remove the "module." prefix in state_dict['model']
+        new_state_dict = {}
+        for key, value in state_dict['model'].items():
+            if key.startswith('module.'):
+                new_key = key[7:]  # 移除 `module.` 前缀
+            else:
+                new_key = key
+            new_state_dict[new_key] = value
+        
+    model.load_state_dict(new_state_dict)
     print ("Model loaded..")
     
     model.eval()
@@ -267,9 +327,9 @@ if __name__ == '__main__':
         with open( os.path.join(opt.result_folder,'scores.txt'), 'a') as f:
             f.write('dataset \t iou \t f1_best \t f1_fixed \t ap \n' )
     elif opt.mask_plus_label:
-        dataset_paths = MASKED_DETECTION_DATASET_PATHS
+        dataset_paths = MASKED_DETECTION_DATASET_PATHS_V2
         with open( os.path.join(opt.result_folder,'scores.txt'), 'a') as f:
-            f.write('dataset \t iou \t f1_best \t f1_fixed \t AP \t Acc_fixed \t Acc_best \t Best_threshold \n' )
+            f.write('dataset \t iou \t f1_best \t f1_fixed \t AP \t Acc_fixed \t Acc_best \n' )
     else:
         dataset_paths = DETECTION_DATASET_PATHS
         with open( os.path.join(opt.result_folder,'scores.txt'), 'a') as f:
@@ -287,8 +347,8 @@ if __name__ == '__main__':
             opt.test_masks_ground_truth_path = dataset_path['masks_path']
             dataset = RealFakeDataset(opt)
         elif opt.mask_plus_label:
-            opt.test_masks_ground_truth_path = dataset_path['fake_masks_path']
-            opt.test_masks_real_ground_truth_path = dataset_path['real_masks_path']
+            # opt.test_masks_ground_truth_path = dataset_path['fake_masks_path']
+            # opt.test_masks_real_ground_truth_path = dataset_path['real_masks_path']
             opt.test_real_list_path = dataset_path['real_path']
             dataset = RealFakeMaskedDetectionDataset_V2(opt)
         else:
@@ -332,7 +392,10 @@ if __name__ == '__main__':
                 if not os.path.exists(output_save_path):
                     os.makedirs(output_save_path)
             
-            ious, f1_best, f1_fixed, mean_ap, mean_acc, mean_acc_best_th, best_thres, all_img_paths = validate_masked_detection_v2(model, loader)
+            if opt.visualize_masks:
+                ious, f1_best, f1_fixed, mean_ap, mean_acc, mean_acc_best_th, best_thres, all_img_paths = validate_masked_detection_v2(model, loader, visualize_mask=True, output_folder=opt.result_folder, dataset_name=dataset_path['key'])
+            else:
+                ious, f1_best, f1_fixed, mean_ap, mean_acc, mean_acc_best_th, best_thres, all_img_paths = validate_masked_detection_v2(model, loader)
             
             mean_iou = sum(ious)/len(ious)
             mean_f1_best = sum(f1_best)/len(f1_best)
@@ -345,7 +408,6 @@ if __name__ == '__main__':
                        str(round(mean_ap, 4)) + '\t' +\
                        str(round(mean_acc, 4)) + '\t' +\
                        str(round(mean_acc_best_th, 4)) + '\t' +\
-                       str(best_thres) + '\t' +\
                        '\n' )
                 print(dataset_path['key']+': IOU = ' + str(round(mean_iou, 3)))
                 print(dataset_path['key']+': F1_best = ' + str(round(mean_f1_best, 4)))
@@ -353,7 +415,6 @@ if __name__ == '__main__':
                 print(dataset_path['key']+': AP = ' + str(round(mean_ap, 4)))
                 print(dataset_path['key']+': Acc_fixed = ' + str(round(mean_acc, 4)))
                 print(dataset_path['key']+': Acc_best = ' + str(round(mean_acc_best_th, 4)))
-                print(dataset_path['key']+': Best_threshold = ' + str(best_thres))
                 print()
             
 

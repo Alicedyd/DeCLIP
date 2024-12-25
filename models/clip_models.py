@@ -247,6 +247,7 @@ class CLIPModelLocalisation(nn.Module):
             outputs = {}
             outputs["mask"] = torch.flatten(binary_map, start_dim=1)
             
+            # guided_feature = binary_map * torch.sigmoid(binary_map)
             guided_feature = feature * torch.sigmoid(binary_map)
             
             logits = self.conv_cls(guided_feature)

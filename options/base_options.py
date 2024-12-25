@@ -11,6 +11,7 @@ class BaseOptions():
         parser.add_argument('--fully_supervised', action='store_true', help='use fully supervision with local manipulation ground truth masks')
         
         parser.add_argument('--mask_plus_label', action='store_true', help='use the bainary map to guide the final output detection label') # xjw
+        parser.add_argument('--visualize_masks', action='store_true')
         parser.add_argument('--mix_type', default='', help='how to mix the images in dataset (cutmix/mixup)') # xjw
 
         parser.add_argument('--arch', type=str, default='CLIP:ViT-L/14', help='see models/__init__.py')
