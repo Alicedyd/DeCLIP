@@ -17,6 +17,8 @@ from torchvision import transforms
 from options.test_options import TestOptions
 from tqdm import tqdm
 
+from utils.visualize import *
+
 
 SEED = 0
 def set_seed():
@@ -177,10 +179,8 @@ def validate_masked_detection_v2(model, loader, visualize_mask=False, output_fol
         if visualize_mask:
             # preparation for visualizing masks
             os.makedirs(os.path.join(output_folder, dataset_name), exist_ok=True)
-            mask_save_path = os.path.join(output_folder, dataset_name, "predicted_masks")
-            gd_mask_save_path = os.path.join(output_folder, dataset_name, "ground_truth_masks")
+            mask_save_path = os.path.join(output_folder, dataset_name)
             os.makedirs(mask_save_path, exist_ok=True)
-            os.makedirs(gd_mask_save_path, exist_ok=True)
         
         with tqdm(total=len(loader), ncols=150) as pbar:
             for batch_idx, data in enumerate(loader):
@@ -208,20 +208,42 @@ def validate_masked_detection_v2(model, loader, visualize_mask=False, output_fol
                 if visualize_mask:
                     # visualize the masks
                     for i, (mask, gd_mask) in enumerate(zip(resized_masks, gd_masks)):
-                        # Binarize predicted mask
-                        binary_mask = (mask > 0.5).float()
+#                         # Binarize predicted mask
+#                         binary_mask = (mask > 0.5).float()
 
-                        # Convert to uint8 images
-                        binary_mask_np = (binary_mask.cpu().numpy() * 255).astype(np.uint8)
-                        gd_mask_np = (gd_mask.cpu().numpy() * 255).astype(np.uint8)
+#                         # Convert to uint8 images
+#                         binary_mask_np = (binary_mask.cpu().numpy() * 255).astype(np.uint8)
+#                         gd_mask_np = (gd_mask.cpu().numpy() * 255).astype(np.uint8)
 
-                        # Save predicted mask
-                        pred_mask_img = Image.fromarray(binary_mask_np)
-                        pred_mask_img.save(os.path.join(mask_save_path, f"batch{batch_idx}_sample{i}_pred.png"))
+#                         # Save predicted mask
+#                         pred_mask_img = Image.fromarray(binary_mask_np)
+#                         pred_mask_img.save(os.path.join(mask_save_path, f"batch{batch_idx}_sample{i}_pred.png"))
 
-                        # Save ground truth mask
-                        gt_mask_img = Image.fromarray(gd_mask_np)
-                        gt_mask_img.save(os.path.join(gd_mask_save_path, f"batch{batch_idx}_sample{i}_gt.png"))
+#                         # Save ground truth mask
+#                         gt_mask_img = Image.fromarray(gd_mask_np)
+#                         gt_mask_img.save(os.path.join(gd_mask_save_path, f"batch{batch_idx}_sample{i}_gt.png"))
+                        img_name = os.path.basename(img_paths[i])
+                        img_prefix = img_name.split(".")[0]
+                        file_name = f"{img_prefix}_visualize"
+    
+                        binary_mask = (mask > 0.5).float().cpu()
+                        
+                        binary_mask = binary_mask.unsqueeze(0).unsqueeze(0)
+                        binary_mask = torch.nn.functional.interpolate(binary_mask, size=(224, 224), mode='bilinear', align_corners=False)
+                        binary_mask = binary_mask.squeeze(0).squeeze(0)
+        
+                        # 应用预测掩码进行高低光融合
+                        fused_img = apply_masked_highlight(img[i], binary_mask)
+
+                        # 可视化
+                        visualize_fused_image(
+                            img=img[i], 
+                            gd_mask=gd_mask, 
+                            pred_mask=binary_mask, 
+                            fused_img=fused_img,
+                            save_path=mask_save_path,
+                            file_name=file_name,
+                        )
 
 
                 batch_ious = compute_batch_iou(resized_masks, gd_masks, threshold = 0.5)

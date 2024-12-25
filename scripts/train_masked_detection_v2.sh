@@ -18,4 +18,5 @@ python ../train.py --name $EXP_NAME --train_dataset $DATASET --feature_layer lay
                 --train_real_list_path $TRAIN_REAL_PATH --valid_real_list_path $VAL_REAL_PATH \
                 --checkpoints_dir $SAVE_PATH \
                 --gpu_ids 0,1,2 \
-                --batch_size 32 --lr 0.0005 --lovasz_weight 0.1 --data_aug drct
+                --batch_size 32 --lr 0.0005 --lovasz_weight 0.1 --data_aug drct \
+| tee ../checkpoint/log.txt
