@@ -41,11 +41,6 @@ class DoNothing(ImageOnlyTransform):
         return image
 
 
-
-<<<<<<< HEAD
-def create_train_transforms(size=300, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225),
-                            is_crop=False,):
-=======
 # def create_train_transforms(size=300, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225),
 #                             is_crop=False,):
 #     resize_fuc = A.RandomCrop(height=size, width=size) if is_crop else A.LongestMaxSize(max_size=size)
@@ -70,7 +65,6 @@ def create_train_transforms(size=300, mean=(0.485, 0.456, 0.406), std=(0.229, 0.
 
 def create_train_transforms(size=224, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225),
                             is_crop=True,):
->>>>>>> 237d3af5 (修改为DRCT数据集)
     resize_fuc = A.RandomCrop(height=size, width=size) if is_crop else A.LongestMaxSize(max_size=size)
     aug_hard = [
         A.ImageCompression(quality_lower=30, quality_upper=100, p=0.5),

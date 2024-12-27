@@ -207,7 +207,7 @@ def validate_masked_detection_v2(model, loader, visualize_mask=False, output_fol
                         
                 if visualize_mask:
                     # visualize the masks
-                    for i, (mask, gd_mask) in enumerate(zip(resized_masks, gd_masks)):
+                    for i, (mask, gd_mask, l) in enumerate(zip(resized_masks, gd_masks, label)):
 #                         # Binarize predicted mask
 #                         binary_mask = (mask > 0.5).float()
 
@@ -224,7 +224,7 @@ def validate_masked_detection_v2(model, loader, visualize_mask=False, output_fol
 #                         gt_mask_img.save(os.path.join(gd_mask_save_path, f"batch{batch_idx}_sample{i}_gt.png"))
                         img_name = os.path.basename(img_paths[i])
                         img_prefix = img_name.split(".")[0]
-                        file_name = f"{img_prefix}_visualize"
+                        file_name = f"{img_prefix}_visualize_{l}"
     
                         binary_mask = (mask > 0.5).float().cpu()
                         

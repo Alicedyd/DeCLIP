@@ -370,4 +370,4 @@ class RealFakeMaskedDetectionDataset_V2(BaseDataset):
             if self.opt.data_label == "train":
                 mask = mask.view(-1)
 
-            return img, label, mask, img_path
+            return img, label, mask, img_path, img_path
