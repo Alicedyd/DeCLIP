@@ -61,6 +61,9 @@ class Trainer(BaseModel):
             self.model = nn.DataParallel(self.model, device_ids=opt.gpu_ids)
         self.model.to(opt.gpu_ids[0])
         
+        # 从断点恢复训练
+        
+        
         if opt.fully_supervised:
             self.ious = []
             self.F1_best = []

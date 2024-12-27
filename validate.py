@@ -184,7 +184,7 @@ def validate_masked_detection_v2(model, loader, visualize_mask=False, output_fol
         
         with tqdm(total=len(loader), ncols=150) as pbar:
             for batch_idx, data in enumerate(loader):
-                img, label, gd_masks, img_paths = data
+                img, label, gd_masks, img_paths, cutmix_img_be_aug = data
 
                 in_tens = img.cuda()
                 outputs = model(in_tens)

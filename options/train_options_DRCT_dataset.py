@@ -12,7 +12,11 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--earlystop_epoch', type=int, default=5)
         parser.add_argument('--optim', type=str, default='adam', help='optim to use (sgd/adam)')
         parser.add_argument('--beta1', type=float, default=0.9, help='momentum term of adam')
+<<<<<<< HEAD
         parser.add_argument('--lr', type=float, default=0.001, help='initial learning rate for adam')
+=======
+        parser.add_argument('--lr', type=float, default=0.0001, help='initial learning rate for adam')
+>>>>>>> 237d3af5 (修改为DRCT数据集)
 
         parser.add_argument('--loss_freq', type=int, default=50, help='frequency of showing loss on tensorboard')
         parser.add_argument('--niter', type=int, default=400, help='total epochs')
