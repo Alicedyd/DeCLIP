@@ -312,8 +312,11 @@ def mixup_data(img1_path=None, img2_path=None, mask=None, alpha=None, transform=
     mask_expanded = np.repeat(mask[..., None] , 3, axis=-1)
     mixed_img = mask_expanded * real_img + (1 - mask_expanded) * mixup_fake_real    
     mixed_label = 1
-
-    mask_label = np.full((mixed_img.shape[0], mixed_img.shape[1], 3), 1, dtype=np.float32)
+    
+    real_label = np.full((real_img.shape[0], real_img.shape[1], 3), 0, dtype=np.float32)
+    fake_label = np.full((real_img.shape[0], real_img.shape[1], 3), 1, dtype=np.float32)
+    mask_label = mask_expanded * real_label + (1 - mask_expanded) * fake_label
+    
     
     transform_tensor = A.Compose([ToTensorV2()])
     mixup_img_be_aug = transform_tensor(image=mixed_img)['image'] # 增强之前
