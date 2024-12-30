@@ -325,8 +325,8 @@ def mixup_data(img1_path=None, img2_path=None, mask=None, alpha=None, transform=
     mixup_img_aug = transform(image=mixed_img)['image']
     
     # Save the tensor images after transformation
-    save_image_from_tensor(mixup_img_be_aug, "mixup_img_tensor.png")##########
-    save_image_from_tensor(mask_label_tensor, "mixup_mask_label_tensor.png")###########
+    # save_image_from_tensor(mixup_img_be_aug, "mixup_img_tensor.png")##########
+    # save_image_from_tensor(mask_label_tensor, "mixup_mask_label_tensor.png")###########
     
     return mixup_img_aug, mixup_img_be_aug, mixed_label, mask_label_tensor[0,:,:]
 
