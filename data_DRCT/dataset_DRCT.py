@@ -603,8 +603,8 @@ def process_aug_image(mask, prob_cutmix=0.5, prob_cutmixup_real_fake=0.2, prob_c
             
     else: # mixup, 抽取对应的rec      
         rec_img = find_img_path(fake_root_path, img_name, 'inpainting')
-        alpha = random.random()
-
+        # alpha = random.random()
+        alpha = random.choice([0.25, 0.5, 0.75])
         cutmix_img_aug, cutmix_img_be_aug, aug_label, aug_mask_label = mixup_data(real_img, rec_img, mask, alpha, transform=transform)
         
     return cutmix_img_aug, cutmix_img_be_aug, aug_label, aug_mask_label
@@ -614,7 +614,7 @@ class AIGCDetectionDataset(Dataset):
                  fake_indexes='1,2,3,4,5,6', phase='train', is_one_hot=False, seed=2021,
                  transform=None, use_label=True, num_classes=None, regex='*.*',
                  is_dire=False, inpainting_dir='full_inpainting', post_aug_mode=None, 
-                 prob_aug=0.5, prob_cutmix=0.5, prob_cutmixup_real_fake=0.3, prob_cutmixup_real_rec=0.3, prob_cutmixup_real_real=0.4):
+                 prob_aug=0.5, prob_cutmix=0.5, prob_cutmixup_real_fake=0.3, prob_cutmixup_real_rec=0.3, prob_cutmixup_real_real=0.4, mask_resize=True):
         self.root_path = root_path  # real 图像的根目录
         self.phase = phase
         self.is_one_hot = is_one_hot
@@ -631,6 +631,7 @@ class AIGCDetectionDataset(Dataset):
         self.prob_cutmixup_real_fake = prob_cutmixup_real_fake
         self.prob_cutmixup_real_rec = prob_cutmixup_real_rec
         self.prob_cutmixup_real_real = prob_cutmixup_real_real      
+        self.mask_resize = mask_resize
         self.mask_transf = self._get_mask_transform()
         
         if self.prob_cutmixup_real_fake + self.prob_cutmixup_real_rec + self.prob_cutmixup_real_real != 1:
@@ -686,7 +687,10 @@ class AIGCDetectionDataset(Dataset):
         return list(self.labels)
     
     def _get_mask_transform(self):
-        return transforms.Resize((256, 256))
+        if self.mask_resize:
+            return transforms.Resize((256, 256))
+        else:
+            return transforms.Resize((224, 224))
 
     def __getitem__(self, index):
         if not self.is_dire:

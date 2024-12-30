@@ -47,8 +47,8 @@ if __name__ == '__main__':
                                is_one_hot=is_one_hot, num_classes=opt.num_classes, inpainting_dir=opt.inpainting_dir, is_dire=opt.is_dire,
                                transform=create_train_transforms(size=opt.input_size, is_crop=opt.is_crop), 
                                prob_aug=opt.prob_aug, prob_cutmix=opt.prob_cutmix, prob_cutmixup_real_fake=opt.prob_cutmixup_real_fake, 
-                               prob_cutmixup_real_rec=opt.prob_cutmixup_real_rec, prob_cutmixup_real_real=opt.prob_cutmixup_real_real
-                               )
+                               prob_cutmixup_real_rec=opt.prob_cutmixup_real_rec, prob_cutmixup_real_real=opt.prob_cutmixup_real_real,
+                               mask_resize=not opt.unet)
     sampler = None
     
     train_loader = DataLoader(xdl, batch_size=opt.batch_size, shuffle=sampler is None, num_workers=opt.num_threads, sampler=sampler)

@@ -1,4 +1,5 @@
 from .clip_models import CLIPModelLocalisation
+from .unet import UNet
 
 
 VALID_NAMES = [
@@ -13,5 +14,7 @@ def get_model(opt):
 
     assert name in VALID_NAMES
 
+    if opt.unet:
+        return UNet(n_channels = 3, n_classes = 1)
     return CLIPModelLocalisation(name.split(':')[1], intermidiate_layer_output = layer, decoder_type=decoder_type, mask_plus_label=opt.mask_plus_label) 
     
