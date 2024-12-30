@@ -301,8 +301,8 @@ def mixup_data(img1_path=None, img2_path=None, mask=None, alpha=None, transform=
     # fake_img, _ = read_image(img2_path)
     # real_img, fake_img, label1, label2 = apply_transform(real_img, fake_img, 0, 1, transform, is_dire=False)
     
-    real_img = read_and_crop(img1_path)
-    fake_img = read_and_crop(img2_path)
+    real_img, fake_img = read_and_crop(img1_path, img2_path)
+    # fake_img = read_and_crop(img2_path)
         
     mixup_fake_real = alpha * real_img + (1 - alpha) * fake_img
     # 将图像值限制在 0 到 255 之间，并转换为 uint8
