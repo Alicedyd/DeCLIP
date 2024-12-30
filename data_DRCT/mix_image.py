@@ -324,6 +324,10 @@ def mixup_data(img1_path=None, img2_path=None, mask=None, alpha=None, transform=
     
     mixup_img_aug = transform(image=mixed_img)['image']
     
+    # Save the tensor images after transformation
+    save_image_from_tensor(mixup_img_be_aug, "mixup_img_tensor.png")##########
+    save_image_from_tensor(mask_label_tensor, "mixup_mask_label_tensor.png")###########
+    
     return mixup_img_aug, mixup_img_be_aug, mixed_label, mask_label_tensor[0,:,:]
 
 if __name__ == '__main__':
@@ -339,11 +343,15 @@ if __name__ == '__main__':
     img = torch.rand((3, 224, 224), dtype=torch.float32)
     test_mask = generate_patch_mask(img, lam)
     # test_mask = test_mask.expand(3, -1, -1)  # Shape becomes (3, H, W)
-    cutmix_img, cutmix_label, mask_label = cutmix_data(
-        img1_path='/root/autodl-tmp/AIGC_data/MSCOCO/train2017/000000000025.jpg', 
-                           img2_path='/root/autodl-tmp/AIGC_data/DRCT-2M/stable-diffusion-inpainting/train2017/000000000061.png', label1=0, label2=1, mask=test_mask, transform=create_train_transforms(224)) 
+    # cutmix_img, cutmix_label, mask_label = cutmix_data(
+    #     img1_path='/root/autodl-tmp/AIGC_data/MSCOCO/train2017/000000000025.jpg', 
+    #                        img2_path='/root/autodl-tmp/AIGC_data/DRCT-2M/stable-diffusion-inpainting/train2017/000000000061.png', label1=0, label2=1, mask=test_mask, transform=create_train_transforms(224)) 
+    cutmix_img_aug, cutmix_img_be_aug, aug_label, aug_mask_label = mixup_data(        
+    img1_path='/root/autodl-tmp/AIGC_data/MSCOCO/train2017/000000000025.jpg', 
+    img2_path='/root/autodl-tmp/AIGC_data/DRCT-2M/stable-diffusion-inpainting/train2017/000000000025.png', 
+    mask=test_mask, alpha=0.5, transform=create_train_transforms(224))
     
-    print('cutmix_label:', cutmix_label)
+    print('cutmix_label:', aug_label)
     
     # 保存 mask 为图像文件
     mask_image = transforms.ToPILImage()(test_mask.squeeze(0))
