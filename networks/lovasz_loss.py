@@ -153,7 +153,7 @@ def lovasz_softmax(probas, labels, classes='present', per_image=False, ignore=No
       per_image: compute the loss per image instead of per batch
       ignore: void class labels
     """
-    print("probas.shape = ", probas.shape)
+    # print("probas.shape = ", probas.shape)
     if per_image:
         loss = mean(lovasz_softmax_flat(*flatten_probas(prob.unsqueeze(0), lab.unsqueeze(0), ignore), classes=classes)
                           for prob, lab in zip(probas, labels))

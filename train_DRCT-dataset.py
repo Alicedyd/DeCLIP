@@ -2,7 +2,7 @@ from copy import deepcopy
 import os
 import time
 from tensorboardX import SummaryWriter
-
+import numpy as np
 from validate import validate, validate_fully_supervised, validate_masked_detection, validate_masked_detection_v2
 from utils.utils import compute_accuracy_detection, compute_average_precision_detection
 # from data import create_dataloader
@@ -14,6 +14,8 @@ from options.train_options_DRCT_dataset import TrainOptions
 from utils.utils import derive_datapaths
 import torch.multiprocessing
 from data_DRCT.transform import create_train_transforms, create_val_transforms
+import torchvision
+from torchvision.transforms import functional as F
 
 from tqdm import tqdm
 from utils.visualize import *
@@ -34,6 +36,13 @@ if __name__ == '__main__':
     
     model = Trainer(opt)
     
+    if opt.model_path is not None:
+        model.load_networks(opt.model_path)
+    else:
+        print('No model found, initializing random model.')
+    
+    # model = torch.nn.DataParallel(model)
+        
     xdl = AIGCDetectionDataset(opt.root_path, fake_root_path=opt.fake_root_path, fake_indexes=opt.fake_indexes, phase='train',
                                is_one_hot=is_one_hot, num_classes=opt.num_classes, inpainting_dir=opt.inpainting_dir, is_dire=opt.is_dire,
                                transform=create_train_transforms(size=opt.input_size, is_crop=opt.is_crop), 
@@ -77,8 +86,15 @@ if __name__ == '__main__':
                 model.set_input(data)
                 model.optimize_parameters()
                 
-                loss_value = round(model.loss.item(), 4)
-                pbar.set_postfix(loss=loss_value)
+                if opt.mask_plus_label:
+                    bce_mask_loss_value = round(model.bce_mask_loss.item(), 4)
+                    lovasz_mask_loss_value = round(model.lovasz_mask_loss.item(), 4)
+                    label_loss_value = round(model.label_loss.item(), 4)
+                    loss_value = round(model.loss.item(), 4)
+                    pbar.set_postfix(bce_mask_loss=bce_mask_loss_value, lovasz_mask_loss=lovasz_mask_loss_value, label_loss=label_loss_value, loss=loss_value)
+                else:
+                    loss_value = round(model.loss.item(), 4)
+                    pbar.set_postfix(loss=loss_value)
 
                 if model.total_steps % opt.loss_freq == 0:
                     # print(f"Train loss: {round(model.loss.item(), 4)} at step: {model.total_steps}; Iter time: {round((time.time() - start_time) / model.total_steps, 4)}")
@@ -87,48 +103,83 @@ if __name__ == '__main__':
                     
                 pbar.update(1)
                 
-                ####### 可视化
-                in_tens = image.cuda()
-                outputs = model.model(in_tens)
-                masks = outputs["mask"]
                 
-                pred_masks = []
-                for i, mask in enumerate(masks):
-                    if mask.size() != gd_masks[i].size():     
-                        print('1111111111111111')
-                        mask_resized = F.resize(mask.unsqueeze(0), gd_masks[i].size(), interpolation=torchvision.transforms.InterpolationMode.BILINEAR).squeeze(0)
-                        pred_masks.append(mask_resized)
-                    else:
-                        pred_masks.append(mask)
-                        
-                if visualize_mask and (model.total_steps % 100 == 0):
-                    # visualize the masks
-                    for i, (mask, gd_mask, l) in enumerate(zip(pred_masks, gd_masks, label)):
-                        img_name = os.path.basename(img_paths[i])
-                        img_prefix = img_name.split(".")[0]
-                        file_name = f"{img_prefix}_{l}"
-    
-                        binary_mask = (mask > 0.5).float().cpu()
-        
-                        binary_mask = binary_mask.view(256, 256)##########
-            
-                        binary_mask = binary_mask.unsqueeze(0).unsqueeze(0)
-                        binary_mask = torch.nn.functional.interpolate(binary_mask, size=(224, 224), mode='bilinear', align_corners=False)
-                        binary_mask = binary_mask.squeeze(0).squeeze(0)
-                    
-        
-                        # 应用预测掩码进行高低光融合
-                        fused_img = apply_masked_highlight(cutmix_img_be_aug[i], binary_mask)
-                        gd_mask = gd_mask.view(256, 256) ##########
-                        # 可视化
-                        visualize_fused_image(
-                            img=cutmix_img_be_aug[i], 
-                            gd_mask=gd_mask, 
-                            pred_mask=binary_mask, 
-                            fused_img=fused_img,
-                            save_path=mask_save_path,
-                            file_name=file_name,
-                        )
+                if model.total_steps == 0 or model.total_steps % 500 == 0:
+                    print(f'model.total_steps:{model.total_steps}')
+                    ####### 可视化
+                    masks_logits = model.output["mask"]
+                    masks = torch.sigmoid(masks_logits.squeeze(1))
+                    logits = model.output["logit"]
+                    prob = torch.sigmoid(logits)
+                    pred_labels = (prob >= 0.5).long() #预测标签
+                    # index_0 = torch.nonzero((pred_labels == 0))[0]
+                    # index_1 = torch.nonzero((pred_labels == 1))[0]
+                    # mask_0 = masks_logits[int(index_0)] #获取label为 0 的mask
+                    # mask_1 = masks_logits[int(index_1)] #获取label为 1 的mask
+                    # print(f'mask_0({int(index_0)}):{mask_0}')
+                    # print(f'mask_1({int(index_1)}):{mask_1}')   
+                    # print(f'pred_labels:{pred_labels}')
+                    # print(f'masks_logits:{masks_logits}')
+
+                    # 将 pred_labels 和 masks_logits 转换为 NumPy 数组（如果需要的话）
+    #                 pred_labels_np = pred_labels.detach().cpu().numpy()
+    #                 masks_logits_np = masks_logits.detach().cpu().numpy()
+
+    #                 # 准备输出文本的内容
+    #                 output_text = []
+    #                 output_text.append(f'pred_labels: {pred_labels_np}')
+    #                 output_text.append('Full masks_logits:')
+    #                 output_text.append(np.array2string(masks_logits_np, threshold=np.inf))
+
+    #                 # Write to a text file
+    #                 with open("output.txt", "w") as file:
+    #                     for line in output_text:
+    #                         file.write(line + "\n")
+
+                    # gd_masks = [((x.to('cpu')) > 0.5).to(torch.bool).squeeze() for x in gd_masks]
+                    gd_masks = torch.stack([((x > 0.5).to(torch.bool)).view(256, 256) for x in gd_masks])
+                    masks = masks.to('cpu').view(masks.size(0), int(masks.size(1)**0.5), int(masks.size(1)**0.5))
+                    # print(f'maks_size:{masks.size()},gd_masks_size:{gd_masks.size()}')
+                    # print(masks)
+
+                    pred_masks = []
+                    for i, mask in enumerate(masks):
+                        if mask.size() != gd_masks[i].size():     
+                            # print(f'maks_size:{mask.size()},gd_masks_size:{gd_masks[i].size()}')
+                            mask_resized = F.resize(mask.unsqueeze(0), gd_masks[i].size(), interpolation=torchvision.transforms.InterpolationMode.BILINEAR).squeeze(0)
+                            pred_masks.append(mask_resized)
+                        else:
+                            pred_masks.append(mask)
+
+                    if visualize_mask:
+                        # visualize the masks
+                        for i, (mask, gd_mask, l, pred_l) in enumerate(zip(pred_masks, gd_masks, label, pred_labels)):
+                            img_name = os.path.basename(img_paths[i])
+                            img_prefix = img_name.split(".")[0]
+                            file_name = f"{img_prefix}_gt_{l}_pd_{pred_l}"
+
+                            binary_mask = (mask > 0.5).float().cpu()
+
+                            # binary_mask = binary_mask.view(256, 256)##########
+
+                            binary_mask = binary_mask.unsqueeze(0).unsqueeze(0)
+                            binary_mask = torch.nn.functional.interpolate(binary_mask, size=(224, 224), mode='bilinear', align_corners=False)
+                            binary_mask = binary_mask.squeeze(0).squeeze(0)
+
+
+                            # 应用预测掩码进行高低光融合
+                            fused_img = apply_masked_highlight(cutmix_img_be_aug[i], binary_mask)
+                            gd_mask = gd_mask.view(256, 256) ##########
+                            # print(f'maks_size:{binary_mask.size()},gd_masks_size:{gd_mask.size()}')
+                            # 可视化
+                            visualize_fused_image(
+                                img=cutmix_img_be_aug[i], 
+                                gd_mask=gd_mask, 
+                                pred_mask=binary_mask, 
+                                fused_img=fused_img,
+                                save_path=mask_save_path,
+                                file_name=file_name,
+                            )
 
 
         epoch_loss /= len(train_loader)
@@ -210,7 +261,8 @@ if __name__ == '__main__':
             # save best model weights or those at save_epoch_freq 
             if mean_iou > best_iou:
                 print('saving best model at the end of epoch %d' % (epoch))
-                model.save_networks( 'model_epoch_best.pth' )
+                # model.save_networks( 'model_epoch_best.pth' )
+                model.save_networks(f'model_best_epoch_{epoch}_acc_{acc}.pth' )
                 best_iou = mean_iou
             
             early_stopping(mean_iou, model)
@@ -236,7 +288,8 @@ if __name__ == '__main__':
             if acc > best_iou:
                 print('saving best model at the end of epoch %d' % (epoch))
 
-                model.save_networks( 'model_epoch_best.pth' )
+                # model.save_networks( 'model_epoch_best.pth' )
+                model.save_networks(f'model_best_epoch_{epoch}_acc_{acc}.pth' )
                 best_iou = acc
 
             early_stopping(acc, model)
@@ -252,9 +305,10 @@ if __name__ == '__main__':
                 print(ap, best_iou)
                 model.save_networks(f'model_best_epoch_{epoch}_acc_{acc}.pth' )
                 best_iou = ap
-            model.save_networks(f'model_last_epoch_{epoch}_acc_{acc}.pth' )
+            
             early_stopping(acc, model)
-        
+            
+        model.save_networks(f'model_last_epoch_{epoch}_acc_{acc}.pth' )
         if early_stopping.early_stop:
             cont_train = model.adjust_learning_rate()
             if cont_train:

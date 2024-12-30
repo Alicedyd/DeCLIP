@@ -27,6 +27,17 @@ class BaseModel(nn.Module):
         torch.save(state_dict, save_path)
 
 
+    def load_networks(self, load_path):
+        checkpoint = torch.load(load_path, map_location='cpu')# 加载保存的状态字典
+        self.model.load_state_dict(checkpoint['model'])# 恢复模型的状态字典
+        self.optimizer.load_state_dict(checkpoint['optimizer'])# 恢复优化器的状态字典
+        # 恢复其他训练状态
+        self.total_steps = checkpoint['total_steps']
+        self.opt.feature_layer = checkpoint['feature_layer']
+        self.opt.decoder_type = checkpoint['decoder_type']
+        print(f"Loaded checkpoint from {load_path}")
+        print(f"Resuming training from step {self.total_steps}")
+        
     def eval(self):
         self.model.eval()
 

@@ -8,7 +8,7 @@ from utils.utils import compute_batch_iou, compute_batch_localization_f1, comput
 import numpy as np
 from PIL import Image
 
-from .lovasz_loss import *
+from .lovasz_loss import lovasz_hinge, lovasz_softmax
 
 class Trainer(BaseModel):
     def name(self):
@@ -59,9 +59,7 @@ class Trainer(BaseModel):
 
         if len(opt.gpu_ids) > 1:
             self.model = nn.DataParallel(self.model, device_ids=opt.gpu_ids)
-        self.model.to(opt.gpu_ids[0])
-        
-        # 从断点恢复训练
+        self.model.to(opt.gpu_ids[0])       
         
         
         if opt.fully_supervised:
@@ -120,6 +118,7 @@ class Trainer(BaseModel):
                 self.output["mask"] = self.output["mask"].view(-1, 1, 256, 256)
                 self.output["mask"] = F.interpolate(self.output["mask"], size=mask_size, mode='bilinear', align_corners=False)
                 self.output["mask"] = torch.flatten(self.output["mask"], start_dim=1).unsqueeze(1)
+                
 
         if not self.opt.fully_supervised and not self.opt.mask_plus_label:
             self.output = torch.mean(self.output, dim=1)
@@ -140,7 +139,7 @@ class Trainer(BaseModel):
         else:
             masks = self.output["mask"]
             logits = self.output["logit"]
-        
+            # print(f'self.output["mask"]:{self.output["mask"]}', flush=True)
         if self.opt.fully_supervised:
             sigmoid_outputs = torch.sigmoid(outputs)
             
@@ -187,7 +186,21 @@ class Trainer(BaseModel):
         
         # xjw
         if self.opt.mask_plus_label:
-            self.loss = (0.5 - self.lovasz_weight) * self.loss_fn(masks, self.mask) +  self.lovasz_weight * lovasz_hinge(masks, self.mask) + 0.5 * self.loss_fn(logits, self.label)
+            # self.loss = (0.5 - self.lovasz_weight) * self.loss_fn(masks, self.mask) +  self.lovasz_weight * lovasz_hinge(masks, self.mask) + 0.5 * self.loss_fn(logits, self.label)
+            
+            sigmoid_masks = torch.sigmoid(masks)
+            sigmoid_masks = sigmoid_masks.view(sigmoid_masks.size(0), int(sigmoid_masks.size(1)**0.5), int(sigmoid_masks.size(1)**0.5))
+            gd_masks = self.mask.view(self.mask.size(0), int(self.mask.size(1)**0.5), int(self.mask.size(1)**0.5))
+            
+            self.bce_mask_loss = self.loss_fn(masks, self.mask)
+            self.lovasz_mask_loss = lovasz_softmax(sigmoid_masks, gd_masks, classes=[1])
+            self.label_loss = self.loss_fn(logits, self.label)
+            self.loss = (0.5 - self.lovasz_weight) * self.bce_mask_loss +  self.lovasz_weight * self.lovasz_mask_loss + 0.5 * self.label_loss
+            
+            # print(f'self.loss_fn(masks, self.mask) :{self.loss_fn(masks, self.mask)} ')
+            # print(f'lovasz_hinge(masks, self.mask) :{lovasz_hinge(masks, self.mask)} ')
+            # print(f'self.loss_fn(logits, self.label) :{self.loss_fn(logits, self.label)} ')
+            
             # self.loss = 0.5 * self.loss_fn(masks, self.mask) + 0.5 * self.loss_fn(logits, self.label)
             # self.loss = self.loss_fn(masks, self.mask)
         else:

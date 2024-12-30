@@ -32,6 +32,7 @@ class TrainOptions(BaseOptions):
         
         parser.add_argument('--checkpoints_dir', type=str, default='checkpoints/', help='models are saved here')
         
+        parser.add_argument('--model_path', type=str, default=None, help='Setting the model path')
         parser.add_argument("--root_path", default='/disk4/chenby/dataset/MSCOCO', help="Setting the root path for dataset loader", type=str)
         parser.add_argument("--fake_root_path", default='/disk4/chenby/dataset/AIGC_MSCOCO', help="Setting the fake root path for dataset loader", type=str)
         parser.add_argument("--fake_indexes", default='1', help="Setting the fake indexes, multi class using '1,2,3,...' ", type=str)

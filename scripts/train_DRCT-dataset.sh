@@ -1,10 +1,13 @@
+ # --model_path /root/autodl-tmp/code/DeCLIP/checkpoint/V2/20241227/model_epoch_best.pth \
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
 DATASET=DRCT-2M
 
 Prob_aug=0.5
 Prob_cutmix=0.5
 P_cutmixup_real_fake=0.2
-P_cutmixup_real_rec=0.6
-P_cutmixup_real_real=0.2
+P_cutmixup_real_rec=0.3
+P_cutmixup_real_real=0.5
 
 echo "P_cutmixup_real_fake: $P_cutmixup_real_fake"
 echo "P_cutmixup_real_rec: $P_cutmixup_real_rec"
@@ -23,10 +26,10 @@ python ../train_DRCT-dataset.py --name $EXP_NAME --train_dataset $DATASET --feat
                 --mask_plus_label \
                 --checkpoints_dir $SAVE_PATH \
                 --gpu_ids 0,1 \
-                --batch_size 16 \
-                --lr 0.001 \
+                --batch_size 32 \
+                --lr 0.0005 \
                 --optim adam \
-                --lovasz_weight 0.25 \
+                --lovasz_weight 0.1 \
                 --data_aug drct \
                 --prob_aug 0.5 \
                 --prob_cutmix 0.5 \

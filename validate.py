@@ -205,9 +205,9 @@ def validate_masked_detection_v2(model, loader, visualize_mask=False, output_fol
                     else:
                         resized_masks.append(mask)
                         
-                if visualize_mask:
+                if visualize_mask and (batch_idx % 100 == 0):
                     # visualize the masks
-                    for i, (mask, gd_mask, l) in enumerate(zip(resized_masks, gd_masks, label)):
+                    for i, (mask, gd_mask, l, prob) in enumerate(zip(resized_masks, gd_masks, label, logits)):
 #                         # Binarize predicted mask
 #                         binary_mask = (mask > 0.5).float()
 
@@ -222,15 +222,18 @@ def validate_masked_detection_v2(model, loader, visualize_mask=False, output_fol
 #                         # Save ground truth mask
 #                         gt_mask_img = Image.fromarray(gd_mask_np)
 #                         gt_mask_img.save(os.path.join(gd_mask_save_path, f"batch{batch_idx}_sample{i}_gt.png"))
-                        img_name = os.path.basename(img_paths[i])
-                        img_prefix = img_name.split(".")[0]
-                        file_name = f"{img_prefix}_visualize_{l}"
     
                         binary_mask = (mask > 0.5).float().cpu()
                         
                         binary_mask = binary_mask.unsqueeze(0).unsqueeze(0)
                         binary_mask = torch.nn.functional.interpolate(binary_mask, size=(224, 224), mode='bilinear', align_corners=False)
                         binary_mask = binary_mask.squeeze(0).squeeze(0)
+                        
+                        pred_l = (prob >= 0.5).long()
+                        
+                        img_name = os.path.basename(img_paths[i])
+                        img_prefix = img_name.split(".")[0]
+                        file_name = f"{img_prefix}_gt_{l}_pd_{pred_l}"
         
                         # 应用预测掩码进行高低光融合
                         fused_img = apply_masked_highlight(img[i], binary_mask)
