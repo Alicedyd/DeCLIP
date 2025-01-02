@@ -248,7 +248,12 @@ class CLIPModelLocalisation(nn.Module):
             outputs["mask"] = torch.flatten(binary_map, start_dim=1)
             
             # guided_feature = binary_map * torch.sigmoid(binary_map)
-            guided_feature = feature * torch.sigmoid(binary_map)
+            # guided_feature = feature * torch.sigmoid(binary_map)
+            
+            sigmoid_bi_map = torch.sigmoid(binary_map) ##########
+            # 根据条件修改结果，大于0.5的变成1，小于0.5的变成0.2
+            sigmoid_bi_map = torch.where(sigmoid_bi_map > 0.5, torch.tensor(1.0), torch.tensor(0.2))
+            guided_feature = feature * torch.sigmoid(sigmoid_bi_map)
             
             logits = self.conv_cls(guided_feature)
             outputs["logit"] = torch.flatten(logits, start_dim=1).squeeze()

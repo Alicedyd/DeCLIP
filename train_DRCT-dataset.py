@@ -48,7 +48,7 @@ if __name__ == '__main__':
                                transform=create_train_transforms(size=opt.input_size, is_crop=opt.is_crop), 
                                prob_aug=opt.prob_aug, prob_cutmix=opt.prob_cutmix, prob_cutmixup_real_fake=opt.prob_cutmixup_real_fake, 
                                prob_cutmixup_real_rec=opt.prob_cutmixup_real_rec, prob_cutmixup_real_real=opt.prob_cutmixup_real_real,
-                               mask_resize=not opt.unet)
+                               mask_resize=(not opt.unet and not opt.maskrcnn))
     sampler = None
     
     train_loader = DataLoader(xdl, batch_size=opt.batch_size, shuffle=sampler is None, num_workers=opt.num_threads, sampler=sampler)
@@ -91,7 +91,7 @@ if __name__ == '__main__':
                     lovasz_mask_loss_value = round(model.lovasz_mask_loss.item(), 4)
                     label_loss_value = round(model.label_loss.item(), 4)
                     loss_value = round(model.loss.item(), 4)
-                    pbar.set_postfix(bce_mask_loss=bce_mask_loss_value, lovasz_mask_loss=lovasz_mask_loss_value, label_loss=label_loss_value, loss=loss_value)
+                    pbar.set_postfix(bce_mask_loss=bce_mask_loss_value, lovasz_mask_loss=lovasz_mask_loss_value, label_loss=label_loss_value, total_loss=loss_value)
                 else:
                     loss_value = round(model.loss.item(), 4)
                     pbar.set_postfix(loss=loss_value)
@@ -105,7 +105,7 @@ if __name__ == '__main__':
                 
                 
                 if model.total_steps == 0 or model.total_steps % 500 == 0:
-                    print(f'model.total_steps:{model.total_steps}')
+                    # print(f'model.total_steps:{model.total_steps}')
                     ####### 可视化
                     masks_logits = model.output["mask"]
                     masks = torch.sigmoid(masks_logits.squeeze(1))
@@ -137,7 +137,12 @@ if __name__ == '__main__':
     #                         file.write(line + "\n")
 
                     # gd_masks = [((x.to('cpu')) > 0.5).to(torch.bool).squeeze() for x in gd_masks]
-                    gd_masks = torch.stack([((x > 0.5).to(torch.bool)).view(256, 256) for x in gd_masks])
+                    if opt.unet or opt.maskrcnn:
+                        _mask_size = 224
+                    else:
+                        _mask_size = 256
+        
+                    gd_masks = torch.stack([((x > 0.5).to(torch.bool)).view(_mask_size, _mask_size) for x in gd_masks])
                     masks = masks.to('cpu').view(masks.size(0), int(masks.size(1)**0.5), int(masks.size(1)**0.5))
                     # print(f'maks_size:{masks.size()},gd_masks_size:{gd_masks.size()}')
                     # print(masks)
@@ -169,7 +174,7 @@ if __name__ == '__main__':
 
                             # 应用预测掩码进行高低光融合
                             fused_img = apply_masked_highlight(cutmix_img_be_aug[i], binary_mask)
-                            gd_mask = gd_mask.view(256, 256) ##########
+                            gd_mask = gd_mask.view(_mask_size, _mask_size) ##########
                             # print(f'maks_size:{binary_mask.size()},gd_masks_size:{gd_mask.size()}')
                             # 可视化
                             visualize_fused_image(
@@ -262,7 +267,7 @@ if __name__ == '__main__':
             if mean_iou > best_iou:
                 print('saving best model at the end of epoch %d' % (epoch))
                 # model.save_networks( 'model_epoch_best.pth' )
-                model.save_networks(f'model_best_epoch_{epoch}_acc_{acc}.pth' )
+                # model.save_networks(f'model_best_epoch_{epoch}.pth' )
                 best_iou = mean_iou
             
             early_stopping(mean_iou, model)
@@ -289,7 +294,7 @@ if __name__ == '__main__':
                 print('saving best model at the end of epoch %d' % (epoch))
 
                 # model.save_networks( 'model_epoch_best.pth' )
-                model.save_networks(f'model_best_epoch_{epoch}_acc_{acc}.pth' )
+                # model.save_networks(f'model_best_epoch_{epoch}_acc_{acc}.pth' )
                 best_iou = acc
 
             early_stopping(acc, model)
@@ -303,12 +308,12 @@ if __name__ == '__main__':
             if ap > best_iou:
                 print('saving best model at the end of epoch %d' % (epoch))
                 print(ap, best_iou)
-                model.save_networks(f'model_best_epoch_{epoch}_acc_{acc}.pth' )
+                # model.save_networks(f'model_best_epoch_{epoch}_acc_{acc}.pth' )
                 best_iou = ap
             
             early_stopping(acc, model)
             
-        model.save_networks(f'model_last_epoch_{epoch}_acc_{acc}.pth' )
+        model.save_networks(f'model_last_epoch_{epoch}_acc_{acc:.2f}.pth' )
         if early_stopping.early_stop:
             cont_train = model.adjust_learning_rate()
             if cont_train:

@@ -33,7 +33,6 @@ def apply_masked_highlight(img, pred_mask):
 
     return fused_img
 
-
 def visualize_fused_image(img, gd_mask, pred_mask, fused_img, save_path, file_name):
     """
     Visualize the original image, ground truth mask, predicted mask, and fused result.
@@ -75,6 +74,63 @@ def visualize_fused_image(img, gd_mask, pred_mask, fused_img, save_path, file_na
     axs[3].imshow(fused_img.permute(1, 2, 0).cpu().numpy())
     axs[3].set_title("Fused Image", pad=10)
     axs[3].axis("off")
+    
+    # Adjust layout and save the figure
+    # Adjust layout and save the figure
+    plt.tight_layout(pad=2)
+    plt.subplots_adjust(wspace=0.3)  # Optional: Adjust spacing
+    plt.savefig(f"{save_path}/{file_name}.jpg")
+    plt.close()
+
+def visualize_fused_image_v2(img, gd_mask, pred_mask, sigmoid_mask, fused_img, save_path, file_name):
+    """
+    Visualize the original image, ground truth mask, predicted mask, and fused result.
+
+    Args:
+    - img (torch.Tensor): Original image tensor in CHW format.
+    - gd_mask (torch.Tensor): Ground truth mask tensor in HW format.
+    - pred_mask (torch.Tensor): Predicted mask tensor in HW format.
+    - fused_img (torch.Tensor): Fused image tensor in CHW format.
+    - save_path (str): Path to save the output visualization.
+    - file_name (str): Name of the output file.
+    """
+    
+    # Clamp data to valid ranges
+    img = torch.clamp(img, 0, 1)  # Assuming input is in [0, 1] for floats
+    gd_mask = torch.clamp(gd_mask, 0, 1)
+    pred_mask = torch.clamp(pred_mask, 0, 1)
+    sigmoid_mask = torch.clamp(sigmoid_mask, 0, 1)
+    fused_img = torch.clamp(fused_img, 0, 1)
+
+    # Create a figure with 1 row and 4 columns
+    fig, axs = plt.subplots(2, 3, figsize=(20, 5))
+    
+    # Plot the original image
+    axs[0][0].imshow(img.permute(1, 2, 0).cpu().numpy())
+    axs[0][0].set_title("Original Image", pad=10)
+    axs[0][0].axis("off")
+    
+    # Plot the ground truth mask
+    axs[1][0].imshow(gd_mask.cpu().numpy(), cmap='gray', vmin=0, vmax=1)
+    axs[1][0].set_title("Ground Truth Mask", pad=10)
+    axs[1][0].axis("off")
+    
+    # Plot the predicted mask
+    axs[1][1].imshow(pred_mask.cpu().numpy(), cmap='gray', vmin=0, vmax=1)
+    axs[1][1].set_title("Predicted Mask", pad=10)
+    axs[1][1].axis("off")
+    
+    # Plot the sigmoid mask
+    axs[1][2].imshow(sigmoid_mask.cpu().numpy(), cmap='gray', vmin=0, vmax=1)
+    axs[1][2].set_title("Sigmoid Mask", pad=10)
+    axs[1][2].axis("off")
+    
+    # Plot the fused image
+    axs[0][1].imshow(fused_img.permute(1, 2, 0).cpu().numpy())
+    axs[0][1].set_title("Fused Image", pad=10)
+    axs[0][1].axis("off")
+    
+    axs[0][2].axis("off")
     
     # Adjust layout and save the figure
     # Adjust layout and save the figure

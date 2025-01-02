@@ -19,7 +19,7 @@ class Trainer(BaseModel):
         self.opt = opt
         self.model = get_model(opt)
             
-        if self.opt.unet:
+        if self.opt.unet or self.opt.maskrcnn:
             for module in self.model.modules():
                 try:
                     torch.nn.init_normal_(module.weight.data, 0.0, opt.init_gain)
@@ -27,6 +27,7 @@ class Trainer(BaseModel):
                     pass
                 
             params = self.model.parameters()
+
         else:
             # Initialize all possible parameters in the final layer
             for fc in self.model.fc:
@@ -122,7 +123,7 @@ class Trainer(BaseModel):
         
         # xjw
         if self.opt.mask_plus_label:
-            if self.opt.unet:
+            if self.opt.unet or self.opt.maskrcnn:
                 _mask_size = 224
             else:
                 _mask_size = 256
@@ -208,7 +209,8 @@ class Trainer(BaseModel):
             self.bce_mask_loss = self.loss_fn(masks, self.mask)
             self.lovasz_mask_loss = lovasz_softmax(sigmoid_masks, gd_masks, classes=[1])
             self.label_loss = self.loss_fn(logits, self.label)
-            self.loss = (0.5 - self.lovasz_weight) * self.bce_mask_loss +  self.lovasz_weight * self.lovasz_mask_loss + 0.5 * self.label_loss
+            # self.loss = (0.6 - self.lovasz_weight) * self.bce_mask_loss +  self.lovasz_weight * self.lovasz_mask_loss + 0.4 * self.label_loss
+            self.loss = self.lovasz_mask_loss + self.label_loss ########
             
             # print(f'self.loss_fn(masks, self.mask) :{self.loss_fn(masks, self.mask)} ')
             # print(f'lovasz_hinge(masks, self.mask) :{lovasz_hinge(masks, self.mask)} ')

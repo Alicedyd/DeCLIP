@@ -224,6 +224,7 @@ def validate_masked_detection_v2(model, loader, visualize_mask=False, output_fol
 #                         gt_mask_img.save(os.path.join(gd_mask_save_path, f"batch{batch_idx}_sample{i}_gt.png"))
     
                         binary_mask = (mask > 0.5).float().cpu()
+                        # sigmoid_mask = mask.float().cpu()
                         
                         binary_mask = binary_mask.unsqueeze(0).unsqueeze(0)
                         binary_mask = torch.nn.functional.interpolate(binary_mask, size=(224, 224), mode='bilinear', align_corners=False)
@@ -241,8 +242,9 @@ def validate_masked_detection_v2(model, loader, visualize_mask=False, output_fol
                         # 可视化
                         visualize_fused_image(
                             img=img[i], 
-                            gd_mask=gd_mask, 
-                            pred_mask=binary_mask, 
+                            gd_mask=gd_mask,
+                            pred_mask=binary_mask,
+                            # sigmoid_mask=sigmoid_mask,
                             fused_img=fused_img,
                             save_path=mask_save_path,
                             file_name=file_name,

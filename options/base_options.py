@@ -25,6 +25,7 @@ class BaseOptions():
         parser.add_argument('--init_gain', type=float, default=0.02, help='scaling factor for normal, xavier and orthogonal.')
         
         parser.add_argument('--unet', action='store_true', help='whether to use unet')
+        parser.add_argument('--maskrcnn', action='store_true', help='whether to use maskrcnn')
         
         self.initialized = True
         return parser

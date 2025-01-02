@@ -54,7 +54,8 @@ def generate_patch_mask(img, lam):
     H, W = 224, 224
 
     # 定义 patch 的大小
-    patch_size = 14
+    # patch_size = 14
+    patch_size = 56
 
     # 计算 patch 的数量
     patch_H_number = H // patch_size
@@ -75,7 +76,7 @@ def generate_patch_mask(img, lam):
         start_y = row * patch_size
         start_x = col * patch_size
 
-        # 将对应的 14x14 区域置为 0
+        # 将对应的 56x56 区域置为 0
         mask[start_y:start_y + patch_size, start_x:start_x + patch_size] = 0
 
     return mask
